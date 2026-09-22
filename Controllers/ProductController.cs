@@ -1,12 +1,13 @@
 ﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using ShopAPI.Authorization;
 using ShopAPI.DTOClasses;
 using ShopAPI.Response;
 using ShopAPI.Services;
 
 namespace ShopAPI.Controllers
 {
-    
+    [Authorize]
     [Route("api/Product")]
     [ApiController]
     public class ProductController : ControllerBase
@@ -17,8 +18,11 @@ namespace ShopAPI.Controllers
             _productService = productService;
         }
 
+        [AllowAnonymous]
         [HttpGet("AllProducts")]
         [ProducesResponseType(typeof(ApiResponse<List<ProductDTO>>), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ApiResponse<List<ProductDTO>>), StatusCodes.Status404NotFound)]
+        [ProducesResponseType(typeof(ApiResponse<List<ProductDTO>>), StatusCodes.Status500InternalServerError)]
         public async Task<ActionResult<ApiResponse<List<ProductDTO>>>> GetAllAsync()
         {
             var products = await _productService.GetAllAsync();
@@ -29,9 +33,14 @@ namespace ShopAPI.Controllers
                 Message = products.Any() ? "Products retrieved successfully." : "No Products found."
             });
         }
+
+        [Authorize(Policy = PolicyNames.AdminOnly)]
         [HttpPost("AddNewProduct")]
-        [Authorize(Roles = "Admin")]
         [ProducesResponseType(typeof(ApiResponse<int>), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ApiResponse<int>), StatusCodes.Status403Forbidden)]
+        [ProducesResponseType(typeof(ApiResponse<int>), StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(typeof(ApiResponse<int>), StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(typeof(ApiResponse<int>), StatusCodes.Status500InternalServerError)]
         public async Task<ActionResult<ApiResponse<int>>> AddNewAsync(CreateProductDTO productDTO)
         {
             return Ok(new ApiResponse<int>
@@ -41,10 +50,12 @@ namespace ShopAPI.Controllers
                 Message = "Product added successfully."
             });
         }
-
+        
         [HttpGet("GetProduct/{id}")]
         [ProducesResponseType(typeof(ApiResponse<ProductDTO>), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ApiResponse<int>), StatusCodes.Status401Unauthorized)]
         [ProducesResponseType(typeof(ApiResponse<ProductDTO>), StatusCodes.Status404NotFound)]
+        [ProducesResponseType(typeof(ApiResponse<int>), StatusCodes.Status500InternalServerError)]
         public async Task<ActionResult<ApiResponse<ProductDTO>>> GetByIdAsync([FromRoute] int id)
         {
             if (id <= 0)
@@ -75,10 +86,13 @@ namespace ShopAPI.Controllers
             });
         }
 
+        [Authorize(Policy = PolicyNames.AdminOnly)]
         [HttpPut("UpdateProduct/{id}")]
-        [Authorize(Roles = "Admin")]
         [ProducesResponseType(typeof(ApiResponse<bool>), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ApiResponse<bool>), StatusCodes.Status404NotFound)]
+        [ProducesResponseType(typeof(ApiResponse<bool>), StatusCodes.Status403Forbidden)]
+        [ProducesResponseType(typeof(ApiResponse<bool>), StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(typeof(ApiResponse<bool>), StatusCodes.Status500InternalServerError)]
         public async Task<ActionResult<ApiResponse<bool>>> UpdateAsync(UpdateProductDTO updateproductDTO, [FromRoute] int id)
         {
             if (id <= 0)
@@ -110,10 +124,13 @@ namespace ShopAPI.Controllers
             });
         }
 
+        [Authorize(Policy = PolicyNames.AdminOnly)]
         [HttpDelete("DeleteProduct/{id}")]
-        [Authorize(Roles = "Admin")]
         [ProducesResponseType(typeof(ApiResponse<bool>), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ApiResponse<bool>), StatusCodes.Status404NotFound)]
+        [ProducesResponseType(typeof(ApiResponse<bool>), StatusCodes.Status403Forbidden)]
+        [ProducesResponseType(typeof(ApiResponse<bool>), StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(typeof(ApiResponse<bool>), StatusCodes.Status500InternalServerError)]
         public async Task<ActionResult<ApiResponse<bool>>> DeleteAsync([FromRoute] int id)
         {
             if (id <= 0)
@@ -145,10 +162,13 @@ namespace ShopAPI.Controllers
             });
         }
 
+        [Authorize(Policy = PolicyNames.AdminOnly)]
         [HttpPut("DisAbleProduct/{id}")]
-        [Authorize(Roles = "Admin")]
         [ProducesResponseType(typeof(ApiResponse<bool>), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ApiResponse<bool>), StatusCodes.Status404NotFound)]
+        [ProducesResponseType(typeof(ApiResponse<bool>), StatusCodes.Status403Forbidden)]
+        [ProducesResponseType(typeof(ApiResponse<bool>), StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(typeof(ApiResponse<bool>), StatusCodes.Status500InternalServerError)]
         public async Task<ActionResult<ApiResponse<bool>>> DisAbleAsync([FromRoute] int id)
         {
             if (id <= 0)
@@ -180,8 +200,11 @@ namespace ShopAPI.Controllers
             });
         }
 
+        [AllowAnonymous]
         [HttpGet("AllActiveProducts")]
         [ProducesResponseType(typeof(ApiResponse<List<ProductDTO>>), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ApiResponse<List<ProductDTO>>), StatusCodes.Status404NotFound)]
+        [ProducesResponseType(typeof(ApiResponse<List<ProductDTO>>), StatusCodes.Status500InternalServerError)]
         public async Task<ActionResult<ApiResponse<List<ProductDTO>>>> GetActiveAsync()
         {
             var products = await _productService.GetActiveAsync();
