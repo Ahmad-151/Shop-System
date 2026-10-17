@@ -1,7 +1,7 @@
 ﻿using FluentValidation;
 using ShopAPI.DTOClasses;
 
-namespace ShopAPI.FluentValidation
+namespace ShopAPI.Validators
 {
     public class CreateProductDtoValidation : AbstractValidator<CreateProductDTO>
     {

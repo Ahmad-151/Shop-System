@@ -1,22 +1,23 @@
-﻿using Microsoft.Data.SqlClient;
+using Microsoft.Data.SqlClient;
 using ShopAPI.DTOClasses;
+using ShopAPI.Infrastructure;
 using System.Data;
 
 namespace ShopAPI.Repositories
 {
     public class PersonRepository : IPersonRepository
     {
-        private readonly string _connectionString;
-        public PersonRepository(IConfiguration configuration)
+        private readonly IDbConnectionFactory _db;
+        public PersonRepository(IDbConnectionFactory db)
         {
-            _connectionString = configuration.GetConnectionString("ShopDbConnection");
+            _db = db;
         }
 
         public async Task<List<PersonDTO>> GetAllAsync()
         {
             List<PersonDTO> listPerson = new List<PersonDTO>();
-            string sql = "Select Person_ID, PersonName, PhoneNumber, Address, Role From Persons;";
-            using (SqlConnection con = new SqlConnection(_connectionString))
+            string sql = "Select Person_ID, PersonName, PhoneNumber, Address, Role, IsActive From Persons;";
+            using (SqlConnection con = _db.CreateConnection())
             {
                 await con.OpenAsync();
                 using (SqlCommand cmd = new SqlCommand(sql, con))
@@ -31,7 +32,8 @@ namespace ShopAPI.Repositories
                                 PersonName = reader["PersonName"].ToString(),
                                 PhoneNumber = reader["PhoneNumber"].ToString(),
                                 Address = reader["Address"].ToString(),
-                                Role = reader["Role"].ToString()
+                                Role = reader["Role"].ToString(),
+                                IsActive = Convert.ToBoolean(reader["IsActive"])
                             });
                         }
                     }
@@ -41,7 +43,7 @@ namespace ShopAPI.Repositories
         }
         public async Task<int> RegisterAsync(RegisterPersonDTO registerDto, string passwordHash)
         {
-            using (SqlConnection con = new SqlConnection(_connectionString))
+            using (SqlConnection con = _db.CreateConnection())
             {
                 await con.OpenAsync();
                 using (SqlCommand cmd = new SqlCommand("dbo.SP_AddNewPerson", con))
@@ -62,10 +64,10 @@ namespace ShopAPI.Repositories
             }
         }
 
-        public async Task<PersonDTO> GetByIdAsync(int id)
+        public async Task<PersonDTO?> GetByIdAsync(int id)
         {
-            string sql = "Select Person_ID, PersonName, PhoneNumber, Address, Role From Persons where Person_ID = @Person_ID";
-            using (SqlConnection con = new SqlConnection(_connectionString))
+            string sql = "Select Person_ID, PersonName, PhoneNumber, Address, Role, IsActive From Persons where Person_ID = @Person_ID";
+            using (SqlConnection con = _db.CreateConnection())
             {
                 await con.OpenAsync();
                 using (SqlCommand cmd = new SqlCommand(sql, con))
@@ -80,7 +82,8 @@ namespace ShopAPI.Repositories
                             PersonName = reader["PersonName"].ToString(),
                             PhoneNumber = reader["PhoneNumber"].ToString(),
                             Address = reader["Address"].ToString(),
-                            Role = reader["Role"].ToString()
+                            Role = reader["Role"].ToString(),
+                            IsActive = Convert.ToBoolean(reader["IsActive"])
                         };
                     }
                 }
@@ -89,7 +92,7 @@ namespace ShopAPI.Repositories
 
         public async Task<bool> UpdateAsync(UpdatePersonDTO updatePersonDTO, int id)
         {
-            using (SqlConnection conn = new SqlConnection(_connectionString))
+            using (SqlConnection conn = _db.CreateConnection())
             {
                 await conn.OpenAsync();
                 using (SqlCommand cmd = new SqlCommand("dbo.SP_UpdatePerson", conn))
@@ -109,7 +112,7 @@ namespace ShopAPI.Repositories
 
         public async Task<bool> DeleteAsync(int id)
         {
-            using (SqlConnection con = new SqlConnection(_connectionString))
+            using (SqlConnection con = _db.CreateConnection())
             {
                 await con.OpenAsync();
                 using (SqlCommand cmd = new SqlCommand("dbo.SP_DeletePerson", con))
@@ -125,9 +128,15 @@ namespace ShopAPI.Repositories
             }
         }
 
-        public async Task<bool> BannAsync(BannedPersonDTO bannedPersonDTO, int id)
+        public Task<bool> BannAsync(BannedPersonDTO bannedPersonDTO, int id)
+            => BannInternalAsync(bannedPersonDTO, id, null);
+
+        public Task<bool> BannAsync(BannedPersonDTO bannedPersonDTO, int id, int actorId)
+            => BannInternalAsync(bannedPersonDTO, id, actorId);
+
+        private async Task<bool> BannInternalAsync(BannedPersonDTO bannedPersonDTO, int id, int? actorId)
         {
-            using (SqlConnection con = new SqlConnection(_connectionString))
+            using (SqlConnection con = _db.CreateConnection())
             {
                 await con.OpenAsync();
                 using (SqlCommand cmd = new SqlCommand("dbo.BannPerson", con))
@@ -135,7 +144,8 @@ namespace ShopAPI.Repositories
                     cmd.CommandType = CommandType.StoredProcedure;
                     cmd.Parameters.Add("@Person_ID", SqlDbType.Int).Value = id;
                     cmd.Parameters.Add("@Reason", SqlDbType.NVarChar, 200).Value = bannedPersonDTO.Reason;
-                    cmd.Parameters.Add("@BannedAt", SqlDbType.DateTime2).Value = bannedPersonDTO.BannedAt;
+                    cmd.Parameters.Add("@BannedAt", SqlDbType.DateTime2).Value = DateTime.UtcNow;
+                    cmd.Parameters.Add("@ActorPerson_ID", SqlDbType.Int).Value = (object?)actorId ?? DBNull.Value;
                     var rowsaff = cmd.Parameters.Add("@RAff", SqlDbType.Int);
                     rowsaff.Direction = ParameterDirection.Output;
 
@@ -146,7 +156,7 @@ namespace ShopAPI.Repositories
         }
         public async Task<bool> AddToFavouriteAsync(int discount, int id)
         {
-            using (SqlConnection con = new SqlConnection(_connectionString))
+            using (SqlConnection con = _db.CreateConnection())
             {
                 await con.OpenAsync();
                 using (SqlCommand cmd = new SqlCommand("dbo.SP_MakeDisCountFor", con))
@@ -161,10 +171,10 @@ namespace ShopAPI.Repositories
             }
         }
 
-        public async Task<PersonAuthDTO> GetByPhoneNumberAsync(string phoneNumber)
+        public async Task<PersonAuthDTO?> GetByPhoneNumberAsync(string phoneNumber)
         {
-            string sql = "Select Person_ID, PersonName, PhoneNumber, PasswordHash, Role From Persons where PhoneNumber = @PhoneNumber";
-            using (SqlConnection con = new SqlConnection(_connectionString))
+            string sql = "Select Person_ID, PersonName, PhoneNumber, PasswordHash, Role, IsActive From Persons where PhoneNumber = @PhoneNumber";
+            using (SqlConnection con = _db.CreateConnection())
             {
                 await con.OpenAsync();
                 using (SqlCommand cmd = new SqlCommand(sql, con))
@@ -179,7 +189,8 @@ namespace ShopAPI.Repositories
                             PersonName = reader["PersonName"].ToString(),
                             PhoneNumber = reader["PhoneNumber"].ToString(),
                             PasswordHash = reader["PasswordHash"] is DBNull ? null : reader["PasswordHash"].ToString(),
-                            Role = reader["Role"].ToString()
+                            Role = reader["Role"].ToString(),
+                            IsActive = Convert.ToBoolean(reader["IsActive"])
                         };
                     }
                 }

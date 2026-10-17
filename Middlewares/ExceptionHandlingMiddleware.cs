@@ -1,9 +1,9 @@
-﻿using Microsoft.Data.SqlClient;
+using Microsoft.Data.SqlClient;
 using ShopAPI.Response;
 using System.Net;
 using System.Text.Json;
 
-namespace ShopAPI.MiddelWares
+namespace ShopAPI.Middlewares
 {
     public class ExceptionHandlingMiddleware
     {
@@ -29,14 +29,28 @@ namespace ShopAPI.MiddelWares
             {
                 await _next(context);
             }
+            catch (OperationCanceledException) when (context.RequestAborted.IsCancellationRequested)
+            {
+                _logger.LogDebug("Request was cancelled by the client. CorrelationId: {CorrelationId}", context.Items[CorrelationIdMiddleware.HeaderName]);
+            }
             catch (SqlException sqlEx)
             {
-                _logger.LogWarning(sqlEx, "A database validation error occurred: {Message}", sqlEx.Message);
+                var isBusinessError = sqlEx.Number is >= 50000 and <= 52999 or 2601 or 2627 or 547;
+                _logger.Log(
+                    isBusinessError ? LogLevel.Warning : LogLevel.Error,
+                    sqlEx,
+                    "A database error occurred (number {SqlErrorNumber}). CorrelationId: {CorrelationId}",
+                    sqlEx.Number,
+                    context.Items[CorrelationIdMiddleware.HeaderName]);
+
+                if (context.Response.HasStarted) throw;
                 await HandleSqlExceptionAsync(context, sqlEx);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "An unhandled exception occurred: {Message}", ex.Message);
+                _logger.LogError(ex, "An unhandled exception occurred. CorrelationId: {CorrelationId}", context.Items[CorrelationIdMiddleware.HeaderName]);
+
+                if (context.Response.HasStarted) throw;
                 await HandleExceptionAsync(context, ex, _env);
             }
         }
@@ -45,7 +59,8 @@ namespace ShopAPI.MiddelWares
         {
             (HttpStatusCode statusCode, string message) = sqlEx.Number switch
             {
-                >= 50000 and <= 50999 => (HttpStatusCode.BadRequest, sqlEx.Message),
+                50005 or 52012 => (HttpStatusCode.Conflict, sqlEx.Message),
+                >= 50000 and <= 52999 => (HttpStatusCode.BadRequest, sqlEx.Message),
                 2601 or 2627 => (HttpStatusCode.Conflict, "This value already exists."),
                 547 => (HttpStatusCode.BadRequest, "The request references data that does not exist or violates a data rule."),
                 _ => (HttpStatusCode.InternalServerError, "An unexpected database error occurred.")

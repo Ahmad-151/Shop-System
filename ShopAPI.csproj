@@ -1,6 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk.Web">
 
   <PropertyGroup>
+	<DefaultItemExcludesInProjectFolder>$(DefaultItemExcludesInProjectFolder);WithRefresh Token/**</DefaultItemExcludesInProjectFolder>
     <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
@@ -14,6 +15,20 @@
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.11" />
     <PackageReference Include="Microsoft.Data.SqlClient" Version="7.0.2" />
     <PackageReference Include="Swashbuckle.AspNetCore" Version="10.2.3" />
+    <PackageReference Include="System.Security.Cryptography.Pkcs" Version="10.0.13" />
   </ItemGroup>
 
+	<ItemGroup>
+		<Compile Remove="ShopAPI.UnitTests\**" />
+		<Content Remove="ShopAPI.UnitTests\**" />
+		<EmbeddedResource Remove="ShopAPI.UnitTests\**" />
+		<None Remove="ShopAPI.UnitTests\**" />
+		<Compile Remove="ShopAPI.IntegrationTests\**" />
+		<Content Remove="ShopAPI.IntegrationTests\**" />
+		<EmbeddedResource Remove="ShopAPI.IntegrationTests\**" />
+		<None Remove="ShopAPI.IntegrationTests\**" />
+	</ItemGroup>
+
+
+	
 </Project>

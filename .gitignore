@@ -1,4 +1,4 @@
-# --- Visual Studio / Rider ---
+# --- Visual Studio / Rider / VS Code ---
 .vs/
 .vscode/
 .idea/
@@ -8,13 +8,10 @@
 *.sln.docstates
 
 # --- Build outputs ---
-bin/
-obj/
-out/
 [Bb]in/
 [Oo]bj/
-
-# --- .NET ---
+out/
+publish/
 *.dll
 *.exe
 *.pdb
@@ -22,9 +19,24 @@ out/
 project.lock.json
 project.fragment.lock.json
 artifacts/
+TestResults/
 
-# --- User Secrets (NEVER commit) ---
+# --- Secrets (NEVER commit) ---
+# Real values live in User Secrets (dev) or environment variables / a vault (prod).
 secrets.json
+*.secrets.json
+.env
+.env.*
+!.env.example
+appsettings.Local.json
+appsettings.*.local.json
+appsettings.Production.json
+
+# --- Local databases and backups ---
+*.mdf
+*.ldf
+*.bak
+*.bacpac
 
 # --- Logs & temp ---
 *.log
@@ -35,8 +47,3 @@ logs/
 # --- OS ---
 Thumbs.db
 .DS_Store
-
-# --- Env files ---
-.env
-.env.*
-*.secrets.json

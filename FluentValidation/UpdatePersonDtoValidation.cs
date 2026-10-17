@@ -1,7 +1,7 @@
-﻿using FluentValidation;
+using FluentValidation;
 using ShopAPI.DTOClasses;
 
-namespace ShopAPI.FluentValidation
+namespace ShopAPI.Validators
 {
     public class UpdatePersonDtoValidation : AbstractValidator<UpdatePersonDTO>
     {
@@ -10,7 +10,7 @@ namespace ShopAPI.FluentValidation
 
             RuleFor(x => x.Address).Cascade(CascadeMode.Stop)
             .NotEmpty().WithMessage("Address is required")
-            .MaximumLength(250).WithMessage("Address must not exceed 200 characters");
+            .MaximumLength(250).WithMessage("Address must not exceed 250 characters");
 
             RuleFor(x => x.PhoneNumber).Cascade(CascadeMode.Stop)
                 .NotEmpty().WithMessage("Phone number is required")

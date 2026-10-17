@@ -1,7 +1,7 @@
-﻿using FluentValidation;
+using FluentValidation;
 using ShopAPI.DTOClasses;
 
-namespace ShopAPI.FluentValidation
+namespace ShopAPI.Validators
 {
     public class RegisterPersonDtoValidation : AbstractValidator<RegisterPersonDTO>
     {
@@ -22,7 +22,9 @@ namespace ShopAPI.FluentValidation
 
             RuleFor(x => x.Password).Cascade(CascadeMode.Stop)
                 .NotEmpty().WithMessage("Password is required")
-                .MinimumLength(8).WithMessage("Password must be at least 8 characters");
+                .MinimumLength(8).WithMessage("Password must be at least 8 characters")
+                .Must(p => System.Text.Encoding.UTF8.GetByteCount(p) <= 72)
+                .WithMessage("Password must not exceed 72 bytes");
         }
     }
 }

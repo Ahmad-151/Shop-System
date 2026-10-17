@@ -1,0 +1,42 @@
+﻿services:
+  db:
+    image: mcr.microsoft.com/mssql/server:2025-latest
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_PID: "Developer"
+      MSSQL_SA_PASSWORD: ${MSSQL_SA_PASSWORD}
+    ports:
+      - "127.0.0.1:1433:1433"
+    volumes:
+      - shopdb-data:/var/opt/mssql
+
+
+  db-init:
+    image: mcr.microsoft.com/mssql/server:2025-latest
+    depends_on:
+      - db
+    environment:
+      MSSQL_SA_PASSWORD: ${MSSQL_SA_PASSWORD}
+    volumes:
+      - ./Database:/scripts:ro
+    entrypoint: ["/bin/bash", "/scripts/init-db.sh"]
+    restart: "no"
+
+
+  api:
+   build:
+    context: .
+    dockerfile: Dockerfile
+   environment:
+    ASPNETCORE_ENVIRONMENT: "Development"
+    ASPNETCORE_HTTP_PORTS: "8080"
+    ConnectionStrings__ShopDbConnection: "Server=db,1433;Database=ShopDB;User Id=sa;Password=${MSSQL_SA_PASSWORD};TrustServerCertificate=True;Encrypt=False"
+    JwtSettings__Key: "${JWT_KEY}"
+    Cors__AllowedOrigins__0: "http://localhost:8080"
+   ports:
+    - "127.0.0.1:8080:8080"
+   depends_on:
+    db-init:
+      condition: service_completed_successfully
+volumes:
+  shopdb-data:

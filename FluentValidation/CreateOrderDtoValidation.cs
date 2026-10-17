@@ -1,18 +1,23 @@
-﻿using FluentValidation;
+using FluentValidation;
 using ShopAPI.DTOClasses;
-using System.Data;
 
-namespace ShopAPI.FluentValidation
+namespace ShopAPI.Validators
 {
     public class CreateOrderDtoValidation : AbstractValidator<CreateOrderDTO>
     {
+        private const int MaxItemsPerOrder = 50;
+
         public CreateOrderDtoValidation()
         {
+            RuleFor(x => x.Items).Cascade(CascadeMode.Stop)
+                .NotNull().WithMessage("Items are required")
+                .NotEmpty().WithMessage("An order must contain at least one item")
+                .Must(items => items.Count <= MaxItemsPerOrder)
+                    .WithMessage($"An order cannot contain more than {MaxItemsPerOrder} items")
+                .Must(items => items.Select(i => i.ProductId).Distinct().Count() == items.Count)
+                    .WithMessage("Each product may appear only once per order; increase its quantity instead");
 
-            RuleFor(X => X.CreatedAt).Cascade(CascadeMode.Stop)
-                .LessThanOrEqualTo(DateTime.Now).WithMessage("Date Can Not Be In The Future");
-
-            RuleForEach(x => x.Items).Cascade(CascadeMode.Stop).SetValidator(new OrderItemDtoValidation());
+            RuleForEach(x => x.Items).SetValidator(new OrderItemDtoValidation());
         }
     }
 }

@@ -1,4 +1,4 @@
-﻿namespace ShopAPI.DTOClasses
+namespace ShopAPI.DTOClasses
 {
     public class OrderDTO
     {
@@ -11,7 +11,6 @@
 
     public class CreateOrderDTO
     {
-        public DateTime? CreatedAt { get; set; }
         public List<CreateOrderItemsDTO> Items { get; set; } = new List<CreateOrderItemsDTO> { };
     }
 
@@ -19,5 +18,10 @@
     {
         public DateTime? DeliveredAt { get; set; }
         public string Status { get; set; }
+    }
+
+    public sealed record CreateOrderResult(int? OrderId, int? OutOfStockProductId = null, int AvailableQuantity = 0)
+    {
+        public bool Succeeded => OrderId.HasValue;
     }
 }

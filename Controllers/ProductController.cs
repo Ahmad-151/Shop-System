@@ -1,5 +1,6 @@
-﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using ShopAPI.Authorization;
 using ShopAPI.DTOClasses;
 using ShopAPI.Response;
@@ -18,10 +19,13 @@ namespace ShopAPI.Controllers
             _productService = productService;
         }
 
-        [AllowAnonymous]
-        [HttpGet("AllProducts")]
+        [Authorize(Policy = PolicyNames.AdminOnly)]
+        [EnableRateLimiting("PerUserPolicy")]
+        [HttpGet]
         [ProducesResponseType(typeof(ApiResponse<List<ProductDTO>>), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ApiResponse<List<ProductDTO>>), StatusCodes.Status404NotFound)]
+        [ProducesResponseType(typeof(ApiResponse<List<ProductDTO>>), StatusCodes.Status403Forbidden)]
+        [ProducesResponseType(typeof(ApiResponse<List<ProductDTO>>), StatusCodes.Status401Unauthorized)]
         [ProducesResponseType(typeof(ApiResponse<List<ProductDTO>>), StatusCodes.Status500InternalServerError)]
         public async Task<ActionResult<ApiResponse<List<ProductDTO>>>> GetAllAsync()
         {
@@ -35,25 +39,33 @@ namespace ShopAPI.Controllers
         }
 
         [Authorize(Policy = PolicyNames.AdminOnly)]
-        [HttpPost("AddNewProduct")]
-        [ProducesResponseType(typeof(ApiResponse<int>), StatusCodes.Status200OK)]
-        [ProducesResponseType(typeof(ApiResponse<int>), StatusCodes.Status403Forbidden)]
-        [ProducesResponseType(typeof(ApiResponse<int>), StatusCodes.Status400BadRequest)]
-        [ProducesResponseType(typeof(ApiResponse<int>), StatusCodes.Status401Unauthorized)]
-        [ProducesResponseType(typeof(ApiResponse<int>), StatusCodes.Status500InternalServerError)]
-        public async Task<ActionResult<ApiResponse<int>>> AddNewAsync(CreateProductDTO productDTO)
+        [HttpPost]
+        [EnableRateLimiting("PerUserPolicy")]
+        [ProducesResponseType(typeof(ApiResponse<int?>), StatusCodes.Status201Created)]
+        [ProducesResponseType(typeof(ApiResponse<int?>), StatusCodes.Status403Forbidden)]
+        [ProducesResponseType(typeof(ApiResponse<int?>), StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(typeof(ApiResponse<int?>), StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(typeof(ApiResponse<int?>), StatusCodes.Status500InternalServerError)]
+        public async Task<ActionResult<ApiResponse<int?>>> AddNewAsync(CreateProductDTO productDTO)
         {
-            return Ok(new ApiResponse<int>
+            var productId = await _productService.AddNewAsync(productDTO);
+            if (productId is null)
             {
-                Data = await _productService.AddNewAsync(productDTO),
-                IsSuccess = true,
-                Message = "Product added successfully."
-            });
+                return BadRequest(new ApiResponse<int?>
+                {
+                    Data = null,
+                    IsSuccess = false,
+                    Message = "Invalid product data. Please ensure all required fields are provided and valid."
+                });
+            }
+            var response = ApiResponse<int?>.SuccessResponse(productId, "Product added successfully.");
+            return CreatedAtRoute("GetProductById", new { id = productId }, response);
         }
         
-        [HttpGet("GetProduct/{id}")]
+        [AllowAnonymous]
+        [HttpGet("{id:int}",Name = "GetProductById")]
+        [EnableRateLimiting("PerUserPolicy")]
         [ProducesResponseType(typeof(ApiResponse<ProductDTO>), StatusCodes.Status200OK)]
-        [ProducesResponseType(typeof(ApiResponse<int>), StatusCodes.Status401Unauthorized)]
         [ProducesResponseType(typeof(ApiResponse<ProductDTO>), StatusCodes.Status404NotFound)]
         [ProducesResponseType(typeof(ApiResponse<int>), StatusCodes.Status500InternalServerError)]
         public async Task<ActionResult<ApiResponse<ProductDTO>>> GetByIdAsync([FromRoute] int id)
@@ -69,7 +81,7 @@ namespace ShopAPI.Controllers
             }
 
             var result = await _productService.GetByIdAsync(id);
-            if (result == null)
+            if (result == null || (!result.IsActive && !User.IsInRole("Admin")))
             {
                 return NotFound(new ApiResponse<ProductDTO>
                 {
@@ -87,7 +99,8 @@ namespace ShopAPI.Controllers
         }
 
         [Authorize(Policy = PolicyNames.AdminOnly)]
-        [HttpPut("UpdateProduct/{id}")]
+        [HttpPut("{id:int}")]
+        [EnableRateLimiting("PerUserPolicy")]
         [ProducesResponseType(typeof(ApiResponse<bool>), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ApiResponse<bool>), StatusCodes.Status404NotFound)]
         [ProducesResponseType(typeof(ApiResponse<bool>), StatusCodes.Status403Forbidden)]
@@ -125,7 +138,8 @@ namespace ShopAPI.Controllers
         }
 
         [Authorize(Policy = PolicyNames.AdminOnly)]
-        [HttpDelete("DeleteProduct/{id}")]
+        [HttpDelete("{id:int}")]
+        [EnableRateLimiting("PerUserPolicy")]
         [ProducesResponseType(typeof(ApiResponse<bool>), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ApiResponse<bool>), StatusCodes.Status404NotFound)]
         [ProducesResponseType(typeof(ApiResponse<bool>), StatusCodes.Status403Forbidden)]
@@ -158,12 +172,13 @@ namespace ShopAPI.Controllers
             {
                 Data = true,
                 IsSuccess = true,
-                Message = "Product deleted successfully."
+                Message = "Product disabled successfully."
             });
         }
 
         [Authorize(Policy = PolicyNames.AdminOnly)]
-        [HttpPut("DisAbleProduct/{id}")]
+        [HttpPut("{id:int}/disable")]
+        [EnableRateLimiting("PerUserPolicy")]
         [ProducesResponseType(typeof(ApiResponse<bool>), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ApiResponse<bool>), StatusCodes.Status404NotFound)]
         [ProducesResponseType(typeof(ApiResponse<bool>), StatusCodes.Status403Forbidden)]
@@ -200,8 +215,26 @@ namespace ShopAPI.Controllers
             });
         }
 
+        [Authorize(Policy = PolicyNames.AdminOnly)]
+        [HttpPost("{id:int}/restock")]
+        [EnableRateLimiting("PerUserPolicy")]
+        [ProducesResponseType(typeof(ApiResponse<bool>), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ApiResponse<bool>), StatusCodes.Status404NotFound)]
+        [ProducesResponseType(typeof(ApiResponse<bool>), StatusCodes.Status403Forbidden)]
+        [ProducesResponseType(typeof(ApiResponse<bool>), StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(typeof(ApiResponse<bool>), StatusCodes.Status401Unauthorized)]
+        public async Task<ActionResult<ApiResponse<bool>>> RestockAsync(int id, [FromBody] RestockProductDTO dto)
+        {
+            if (id <= 0) return BadRequest(ApiResponse<bool>.FailureResponse("Product ID must be a positive number."));
+            var result = await _productService.RestockAsync(id, dto.Quantity, dto.Reason);
+            return result
+                ? Ok(ApiResponse<bool>.SuccessResponse(true, "Product restocked successfully."))
+                : NotFound(ApiResponse<bool>.FailureResponse("Product does not exist or is inactive."));
+        }
+
         [AllowAnonymous]
-        [HttpGet("AllActiveProducts")]
+        [HttpGet("active")]
+        [EnableRateLimiting("PerUserPolicy")]
         [ProducesResponseType(typeof(ApiResponse<List<ProductDTO>>), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ApiResponse<List<ProductDTO>>), StatusCodes.Status404NotFound)]
         [ProducesResponseType(typeof(ApiResponse<List<ProductDTO>>), StatusCodes.Status500InternalServerError)]
@@ -214,6 +247,19 @@ namespace ShopAPI.Controllers
                 IsSuccess = true,
                 Message = products.Any() ? "Products retrieved successfully." : "No Products found."
             });
+        }
+
+        [AllowAnonymous]
+        [HttpGet("paged")]
+        [EnableRateLimiting("PerUserPolicy")]
+        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
+        public async Task<ActionResult<ApiResponse<object>>> GetActivePagedAsync([FromQuery] int page = 1, [FromQuery] int pageSize = 20)
+        {
+            if (page < 1 || pageSize is < 1 or > 100)
+                return BadRequest(ApiResponse<object>.FailureResponse("Page must be positive and pageSize must be between 1 and 100."));
+            var result = await _productService.GetActivePageAsync(page, pageSize);
+            return Ok(ApiResponse<object>.SuccessResponse(result, "Products retrieved successfully."));
         }
     }
 }

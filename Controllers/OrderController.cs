@@ -1,11 +1,11 @@
-﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using ShopAPI.Authorization;
 using ShopAPI.DTOClasses;
 using ShopAPI.Extensions;
 using ShopAPI.Response;
 using ShopAPI.Services;
-using System.IdentityModel.Tokens.Jwt;
 
 namespace ShopAPI.Controllers
 {
@@ -19,20 +19,10 @@ namespace ShopAPI.Controllers
         {
             _orderService = orderService;
         }
-        private int CurrentPersonId =>
-            int.Parse(User.FindFirst(JwtRegisteredClaimNames.Sub)!.Value);
-
-
-        //[Authorize]
-        //[HttpGet("whoami")]
-        //public IActionResult WhoAmI()
-        //{
-        //    var claims = User.Claims.Select(c => new { c.Type, c.Value });
-        //    return Ok(claims);
-        //}
 
         [Authorize(Policy = PolicyNames.AdminOnly)]
-        [HttpGet("AllOrders")]
+        [HttpGet]
+        [EnableRateLimiting("AdminOperationsPolicy")]
         [ProducesResponseType(typeof(ApiResponse<List<OrderDTO>>), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ApiResponse<List<OrderDTO>>), StatusCodes.Status403Forbidden)]
         [ProducesResponseType(typeof(ApiResponse<List<OrderDTO>>), StatusCodes.Status401Unauthorized)]
@@ -47,8 +37,26 @@ namespace ShopAPI.Controllers
             });
         }
 
+        [HttpGet("mine/paged")]
+        [EnableRateLimiting("PerUserPolicy")]
+        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status401Unauthorized)]
+        public async Task<ActionResult<ApiResponse<object>>> GetMyOrders([FromQuery] int page = 1, [FromQuery] int pageSize = 20)
+        {
+            var personId = User.GetPersonId();
+            if (personId is null)
+            {
+                return Unauthorized(ApiResponse<object>.FailureResponse("Invalid or missing user identity claim."));
+            }
+            if (page < 1 || pageSize is < 1 or > 100)
+                return BadRequest(ApiResponse<object>.FailureResponse("Page must be positive and pageSize must be between 1 and 100."));
+            var orders = await _orderService.GetByPersonPageAsync(personId.Value, page, pageSize);
+            return Ok(ApiResponse<object>.SuccessResponse(orders, orders.TotalCount == 0 ? "No orders found." : "Orders retrieved successfully."));
+        }
+
         [Authorize(Policy = PolicyNames.OrderOwner)]
-        [HttpGet("{id}")]
+        [HttpGet("{id:int}")]
+        [EnableRateLimiting("PerUserPolicy")]
         [ProducesResponseType(typeof(ApiResponse<OrderDTO>), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ApiResponse<OrderDTO>), StatusCodes.Status404NotFound)]
         [ProducesResponseType(typeof(ApiResponse<OrderDTO>), StatusCodes.Status403Forbidden)]
@@ -73,44 +81,46 @@ namespace ShopAPI.Controllers
             });
         }
 
-        [HttpPost("AddOrder")]
-        [ProducesResponseType(typeof(ApiResponse<int>), StatusCodes.Status200OK)]
+        [HttpPost]
+        [EnableRateLimiting("OrderCreationPolicy")]
+        [ProducesResponseType(typeof(ApiResponse<int>), StatusCodes.Status201Created)]
         [ProducesResponseType(typeof(ApiResponse<int>), StatusCodes.Status400BadRequest)]
-        public async Task<ActionResult<ApiResponse<int>>> AddOrder([FromBody] CreateOrderDTO orderDto)
+        [ProducesResponseType(typeof(ApiResponse<int>), StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(typeof(ApiResponse<int>), StatusCodes.Status409Conflict)]
+        public async Task<ActionResult<ApiResponse<int>>> AddOrder([FromBody] CreateOrderDTO orderDto, [FromHeader(Name = "Idempotency-Key")] string? idempotencyKey)
         {
-            var result = await _orderService.AddNewAsync(orderDto, CurrentPersonId);
-
-            var currentPersonId = User.GetPersonId();
-            if (currentPersonId == null)
+            var personId = User.GetPersonId();
+            if (personId is null)
+            {
                 return Unauthorized(new ApiResponse<int>
                 {
                     Data = 0,
                     IsSuccess = false,
-                    Message = "Person ID Can Not Be Empty ."
-                });
-
-            if (result < 0)
-            {
-                int inx = (-result) - 1;
-                return BadRequest(new ApiResponse<int>
-                {
-                    Data = orderDto.Items[inx].Quantity,
-                    IsSuccess = false,
-                    Message = "There is not enough stock of product number: " + orderDto.Items[inx].ProductId
+                    Message = "Invalid or missing user identity claim."
                 });
             }
 
-            
-            return Ok(new ApiResponse<int>
+            if (string.IsNullOrWhiteSpace(idempotencyKey) || idempotencyKey.Length > 100)
+                return BadRequest(ApiResponse<int>.FailureResponse("Idempotency-Key header is required and must not exceed 100 characters."));
+
+            var result = await _orderService.AddNewAsync(orderDto, personId.Value, idempotencyKey);
+
+            if (!result.Succeeded)
             {
-                Data = result,
-                IsSuccess = true,
-                Message = "Order added successfully."
-            });
+                return Conflict(ApiResponse<int>.FailureResponse("Insufficient stock.", new List<string>
+                {
+                    $"ProductId={result.OutOfStockProductId}",
+                    $"AvailableQuantity={result.AvailableQuantity}"
+                }));
+            }
+
+            var response = ApiResponse<int>.SuccessResponse(result.OrderId!.Value, "Order added successfully.");
+            return CreatedAtAction(nameof(GetOrderById), new { id = result.OrderId.Value }, response);
         }
 
-        [Authorize(Policy = PolicyNames.OrderOwner)]
-        [HttpPut("UpdateOrder/{id}")]
+        [Authorize(Policy = PolicyNames.AdminOnly)]
+        [HttpPut("{id:int}")]
+        [EnableRateLimiting("PerUserPolicy")]
         [ProducesResponseType(typeof(ApiResponse<bool>), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ApiResponse<bool>), StatusCodes.Status404NotFound)]
         public async Task<ActionResult<ApiResponse<bool>>> UpdateOrder([FromBody] UpdateOrderDTO orderDto, [FromRoute] int id)
@@ -134,7 +144,8 @@ namespace ShopAPI.Controllers
         }
 
         [Authorize(Policy = PolicyNames.OrderOwner)]
-        [HttpDelete("DeleteOrder/{id}")]
+        [HttpPost("{id:int}/cancel")]
+        [EnableRateLimiting("PerUserPolicy")]
         [ProducesResponseType(typeof(ApiResponse<bool>), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ApiResponse<bool>), StatusCodes.Status404NotFound)]
         [ProducesResponseType(typeof(ApiResponse<bool>), StatusCodes.Status400BadRequest)]
@@ -150,7 +161,7 @@ namespace ShopAPI.Controllers
                 });
             }
 
-            var result = await _orderService.DeleteAsync(id);
+            var result = await _orderService.CancelAsync(id);
             if (!result)
             {
                 return NotFound(new ApiResponse<bool>
@@ -164,12 +175,13 @@ namespace ShopAPI.Controllers
             {
                 Data = true,
                 IsSuccess = true,
-                Message = "Order deleted successfully."
+                Message = "Order cancelled and stock restored successfully."
             });
         }
 
         [Authorize(Policy = PolicyNames.AdminOnly)]
-        [HttpGet("Exists/{id}")]
+        [HttpGet("{id:int}/exists")]
+        [EnableRateLimiting("PerUserPolicy")]
         [ProducesResponseType(typeof(ApiResponse<bool>), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ApiResponse<bool>), StatusCodes.Status404NotFound)]
         public async Task<ActionResult<ApiResponse<bool>>> Exists([FromRoute] int id)

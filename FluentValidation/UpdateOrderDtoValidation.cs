@@ -1,7 +1,7 @@
-﻿using FluentValidation;
+using FluentValidation;
 using ShopAPI.DTOClasses;
 
-namespace ShopAPI.FluentValidation
+namespace ShopAPI.Validators
 {
     public class UpdateOrderDtoValidation : AbstractValidator<UpdateOrderDTO>
     {
@@ -11,7 +11,7 @@ namespace ShopAPI.FluentValidation
         public UpdateOrderDtoValidation()
         {
             RuleFor(x => x.DeliveredAt).Cascade(CascadeMode.Stop)
-                .LessThanOrEqualTo(DateTime.Now).WithMessage("Date Can Not Be In The Future");
+                .Must(date => date is null || date <= DateTime.UtcNow).WithMessage("Date Can Not Be In The Future");
 
             RuleFor(x => x.Status).Cascade(CascadeMode.Stop)
                 .NotEmpty().WithMessage("Status is required")

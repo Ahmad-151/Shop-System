@@ -1,5 +1,6 @@
-﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using ShopAPI.Authorization;
 using ShopAPI.DTOClasses;
 using ShopAPI.Extensions;
@@ -21,16 +22,11 @@ namespace ShopAPI.Controllers
             _personService = personService;
         }
 
-        private int CurrentPersonId =>
-        User.GetPersonId() ?? throw new UnauthorizedAccessException("Invalid or missing user identity claim.");
-
-        private bool IsAdmin => User.IsInRole("Admin");
-
-        private bool CanAccess(int targetPersonId) => IsAdmin || CurrentPersonId == targetPersonId;
-
-        [HttpGet("AllPeople")]
-        [Authorize(Roles = "Admin")]
+        [Authorize(Policy = PolicyNames.AdminOnly)]
+        [HttpGet]
+        [EnableRateLimiting("PerUserPolicy")]
         [ProducesResponseType(typeof(ApiResponse<List<PersonDTO>>), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ApiResponse<List<PersonDTO>>), StatusCodes.Status404NotFound)]
         public async Task<ActionResult<ApiResponse<List<PersonDTO>>>> GetAllAsync()
         {
             var people = await _personService.GetAllAsync();
@@ -41,8 +37,10 @@ namespace ShopAPI.Controllers
                 Message = people.Any() ? "Persons retrieved successfully." : "No Persons found."
             });
         }
+
         [Authorize(Policy = PolicyNames.PersonOwner)]
-        [HttpGet("GetPerson/{id}")]
+        [HttpGet("{id:int}")]
+        [EnableRateLimiting("PerUserPolicy")]
         [ProducesResponseType(typeof(ApiResponse<PersonDTO>), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ApiResponse<PersonDTO>), StatusCodes.Status404NotFound)]
         [ProducesResponseType(typeof(ApiResponse<PersonDTO>), StatusCodes.Status403Forbidden)]
@@ -56,11 +54,6 @@ namespace ShopAPI.Controllers
                     IsSuccess = false,
                     Message = "Person ID must be a positive number."
                 });
-            }
-
-            if (!CanAccess(id))
-            {
-                return Forbid();
             }
 
             var result = await _personService.GetByIdAsync(id);
@@ -81,7 +74,9 @@ namespace ShopAPI.Controllers
             });
         }
 
-        [HttpPut("UpdatePerson/{id}")]
+        [Authorize(Policy = PolicyNames.PersonOwner)]
+        [HttpPut("{id:int}")]
+        [EnableRateLimiting("PerUserPolicy")]
         [ProducesResponseType(typeof(ApiResponse<bool>), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ApiResponse<bool>), StatusCodes.Status404NotFound)]
         [ProducesResponseType(typeof(ApiResponse<bool>), StatusCodes.Status403Forbidden)]
@@ -96,12 +91,6 @@ namespace ShopAPI.Controllers
                     Message = "Person ID must be a positive number."
                 });
             }
-
-            if (!CanAccess(id))
-            {
-                return Forbid();
-            }
-
             var result = await _personService.UpdateAsync(updatePersonDTO, id);
             if (!result)
             {
@@ -121,7 +110,9 @@ namespace ShopAPI.Controllers
             });
         }
 
-        [HttpDelete("DeletePerson/{id}")]
+        [Authorize(Policy = PolicyNames.AdminOnly)]
+        [EnableRateLimiting("PerUserPolicy")]
+        [HttpDelete("{id:int}")]
         [ProducesResponseType(typeof(ApiResponse<bool>), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ApiResponse<bool>), StatusCodes.Status404NotFound)]
         [ProducesResponseType(typeof(ApiResponse<bool>), StatusCodes.Status403Forbidden)]
@@ -136,12 +127,6 @@ namespace ShopAPI.Controllers
                     Message = "Person ID must be a positive number."
                 });
             }
-
-            if (!CanAccess(id))
-            {
-                return Forbid();
-            }
-
             var result = await _personService.DeleteAsync(id);
             if (!result)
             {
@@ -161,8 +146,9 @@ namespace ShopAPI.Controllers
             });
         }
 
-        [HttpPost("BannPerson/{id}")]
-        [Authorize(Roles = "Admin")]
+        [Authorize(Policy = PolicyNames.AdminOnly)]
+        [HttpPost("{id:int}/ban")]
+        [EnableRateLimiting("PerUserPolicy")]
         [ProducesResponseType(typeof(ApiResponse<bool>), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ApiResponse<bool>), StatusCodes.Status404NotFound)]
         public async Task<ActionResult<ApiResponse<bool>>> BannAsync(BannedPersonDTO bannedPersonDTO, [FromRoute] int id)
@@ -177,7 +163,9 @@ namespace ShopAPI.Controllers
                 });
             }
 
-            var result = await _personService.BannAsync(bannedPersonDTO, id);
+            var actorId = User.GetPersonId();
+            if (actorId is null) return Unauthorized(ApiResponse<bool>.FailureResponse("Invalid or missing user identity claim."));
+            var result = await _personService.BannAsync(bannedPersonDTO, id, actorId.Value);
             if (!result)
             {
                 return NotFound(new ApiResponse<bool>
@@ -196,19 +184,20 @@ namespace ShopAPI.Controllers
             });
         }
 
-        [HttpPost("AddToFavourites/{DisCount}/{id}")]
-        [Authorize(Roles = "Admin")]
+        [Authorize(Policy = PolicyNames.AdminOnly)]
+        [HttpPost("{id:int}/favourite/{DisCount:int}")]
+        [EnableRateLimiting("PerUserPolicy")]
         [ProducesResponseType(typeof(ApiResponse<bool>), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ApiResponse<bool>), StatusCodes.Status404NotFound)]
         public async Task<ActionResult<ApiResponse<bool>>> AddToFavouriteAsync([FromRoute] int DisCount, [FromRoute] int id)
         {
-            if (DisCount <= 0 || id <= 0)
+            if (DisCount is <= 0 or > 100 || id <= 0)
             {
                 return BadRequest(new ApiResponse<bool>
                 {
                     Data = false,
                     IsSuccess = false,
-                    Message = "Invalid data."
+                    Message = "Invalid data. Discount must be between 1 and 100."
                 });
             }
 

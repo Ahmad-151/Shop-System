@@ -1,4 +1,4 @@
-﻿using ShopAPI.DTOClasses;
+using ShopAPI.DTOClasses;
 
 namespace ShopAPI.Repositories
 {
@@ -7,11 +7,12 @@ namespace ShopAPI.Repositories
     {
         Task<List<PersonDTO>> GetAllAsync();
         Task<int> RegisterAsync(RegisterPersonDTO registerDto, string passwordHash);
-        Task<PersonDTO> GetByIdAsync(int id);
+        Task<PersonDTO?> GetByIdAsync(int id);
         Task<bool> UpdateAsync(UpdatePersonDTO personDTO, int id);
         Task<bool> DeleteAsync(int id);
         Task<bool> BannAsync(BannedPersonDTO bannedPersonDTO, int id);
+        Task<bool> BannAsync(BannedPersonDTO bannedPersonDTO, int id, int actorId);
         Task<bool> AddToFavouriteAsync(int discount, int id);
-        Task<PersonAuthDTO> GetByPhoneNumberAsync(string phoneNumber);
+        Task<PersonAuthDTO?> GetByPhoneNumberAsync(string phoneNumber);
     }
 }

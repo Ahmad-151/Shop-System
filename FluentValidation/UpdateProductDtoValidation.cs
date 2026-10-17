@@ -1,7 +1,7 @@
-﻿using FluentValidation;
+using FluentValidation;
 using ShopAPI.DTOClasses;
 
-namespace ShopAPI.FluentValidation
+namespace ShopAPI.Validators
 {
     public class UpdateProductDtoValidation : AbstractValidator<UpdateProductDTO>
     {
@@ -10,7 +10,7 @@ namespace ShopAPI.FluentValidation
             RuleFor(x => x.Description).Cascade(CascadeMode.Stop)
              .NotEmpty().WithMessage("Description is required")
              .MinimumLength(10).WithMessage("Description must be at least 10 characters long")
-             .MaximumLength(1000).WithMessage("Description must not exceed 100 characters");
+             .MaximumLength(1000).WithMessage("Description must not exceed 1000 characters");
 
             RuleFor(x => x.UnitPrice).Cascade(CascadeMode.Stop)
                 .NotEmpty().WithMessage("UnitPrice is required")

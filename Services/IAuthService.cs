@@ -1,10 +1,14 @@
 ﻿using ShopAPI.DTOClasses;
+using ShopAPI.DTOClasses.Auth;
 
 namespace ShopAPI.Services
 {
     public interface IAuthService
     {
-        Task<string> LoginAsync(LoginDTO loginDto);
-        Task<string> RegisterAsync(RegisterPersonDTO registerDto);
+        Task<TokenResponseDTO> LoginAsync(LoginDTO loginDto);
+        Task<TokenResponseDTO> RegisterAsync(RegisterPersonDTO registerDto);
+        Task<TokenResponseDTO> RefreshTokenAsync(string refreshToken);
+        Task LogoutAsync(string refreshToken);
+
     }
 }
