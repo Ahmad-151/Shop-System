@@ -1,0 +1,41 @@
+@ShopAPI_HostAddress = http://localhost:5235
+# Paste the accessToken returned by Login here:
+@token =
+
+### Register a customer
+POST {{ShopAPI_HostAddress}}/api/Auth/Register
+Content-Type: application/json
+
+{
+  "personName": "Test Customer",
+  "phoneNumber": "0912345678",
+  "address": "Damascus - Example Street",
+  "password": "ChangeMe123"
+}
+
+### Login (the refresh token is returned as an HttpOnly cookie)
+POST {{ShopAPI_HostAddress}}/api/Auth/Login
+Content-Type: application/json
+
+{
+  "phoneNumber": "0912345678",
+  "password": "ChangeMe123"
+}
+
+### Public catalog
+GET {{ShopAPI_HostAddress}}/api/Product/active
+
+### Create an order (requires login)
+POST {{ShopAPI_HostAddress}}/api/Order
+Authorization: Bearer {{token}}
+Idempotency-Key: checkout-demo-001
+Content-Type: application/json
+
+{
+  "items": [
+    { "productId": 1, "quantity": 2 }
+  ]
+}
+
+### Health
+GET {{ShopAPI_HostAddress}}/health/ready
