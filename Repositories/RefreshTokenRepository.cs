@@ -89,11 +89,8 @@ namespace ShopAPI.Repositories
 
             await command.ExecuteNonQueryAsync();
 
-<<<<<<< HEAD
-            if (personId.Value is DBNull || newTokenId.Value is DBNull)
-=======
-            if (personId.Value is DBNull || personId.Value is null)
->>>>>>> 432c82a27a0f567d8fc0fb34834b94130171bfc7
+            if (personId.Value is null || personId.Value is DBNull ||
+                newTokenId.Value is null || newTokenId.Value is DBNull)
                 return null;
 
             return Convert.ToInt32(personId.Value);
