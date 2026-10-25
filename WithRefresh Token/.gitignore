@@ -1,0 +1,42 @@
+# --- Visual Studio / Rider ---
+.vs/
+.vscode/
+.idea/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# --- Build outputs ---
+bin/
+obj/
+out/
+[Bb]in/
+[Oo]bj/
+
+# --- .NET ---
+*.dll
+*.exe
+*.pdb
+*.cache
+project.lock.json
+project.fragment.lock.json
+artifacts/
+
+# --- User Secrets (NEVER commit) ---
+secrets.json
+
+# --- Logs & temp ---
+*.log
+logs/
+*.tmp
+*.temp
+
+# --- OS ---
+Thumbs.db
+.DS_Store
+
+# --- Env files ---
+.env
+.env.*
+*.secrets.json
