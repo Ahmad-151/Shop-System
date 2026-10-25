@@ -2,7 +2,8 @@ namespace ShopAPI.Observability;
 
 public sealed class AuditBackgroundWriter : BackgroundService
 {
-    private const int MaxDrainOnShutdown = 200;
+    private static readonly TimeSpan WriteTimeout = TimeSpan.FromSeconds(5);
+    private static readonly TimeSpan DrainTimeout = TimeSpan.FromSeconds(10);
 
     private readonly AuditQueue _queue;
     private readonly IAuditStore _store;
@@ -21,7 +22,8 @@ public sealed class AuditBackgroundWriter : BackgroundService
         {
             await foreach (var entry in _queue.Reader.ReadAllAsync(stoppingToken))
             {
-                await _store.WriteAsync(entry, stoppingToken);
+                using var cts = new CancellationTokenSource(WriteTimeout);
+                await TryWriteAsync(entry, cts.Token);
             }
         }
         catch (OperationCanceledException)
@@ -29,13 +31,40 @@ public sealed class AuditBackgroundWriter : BackgroundService
             // Normal shutdown.
         }
 
+        await DrainAsync();
+    }
+
+    private async Task DrainAsync()
+    {
+        _queue.Complete(); 
+
+        using var cts = new CancellationTokenSource(DrainTimeout);
         var drained = 0;
-        while (drained < MaxDrainOnShutdown && _queue.Reader.TryRead(out var pending))
+
+        while (!cts.IsCancellationRequested && _queue.Reader.TryRead(out var pending))
         {
-            await _store.WriteAsync(pending, CancellationToken.None);
-            drained++;
+            if (await TryWriteAsync(pending, cts.Token))
+                drained++;
         }
 
-        _logger.LogInformation("Audit writer stopped after flushing {Count} pending events", drained);
+        var lost = _queue.Reader.Count;
+
+        _logger.LogInformation(
+            "Audit writer stopped. Flushed: {Drained}, left in queue: {Lost}, dropped while full: {Dropped}",
+            drained, lost, _queue.DroppedCount);
+    }
+
+    private async Task<bool> TryWriteAsync(AuditEntry entry, CancellationToken ct)
+    {
+        try
+        {
+            await _store.WriteAsync(entry, ct);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to write audit entry");
+            return false;
+        }
     }
 }
