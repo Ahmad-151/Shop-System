@@ -19,8 +19,12 @@
       MSSQL_SA_PASSWORD: ${MSSQL_SA_PASSWORD}
     volumes:
       - ./Database:/scripts:ro
-    entrypoint: ["/bin/bash", "/scripts/init-db.sh"]
     restart: "no"
+    entrypoint: ["/bin/bash", "-c"]
+    command:
+      - |
+        tr -d '\r' < /scripts/init-db.sh > /tmp/init-db.sh
+        cd /scripts && bash /tmp/init-db.sh
 
 
   api:
