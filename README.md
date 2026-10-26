@@ -170,10 +170,10 @@ The scripts live in the [`Database/`](Database) folder.
 ## ScreenShots 
 
 [1]
-[ Registration via swagger ](https://github.com/Ahmad-151/Shop-System/blob/main/ScreenShots/swagger-register.png)
+[ Registration via swagger ](ScreenShots/swagger-regisrtation.png)
 
 [2]
-[ Person delete forbidden  ](https://github.com/Ahmad-151/Shop-System/blob/main/ScreenShots/swagger-persons-delete-forbidden.png)
+[ Person delete forbidden  ](ScreenShots/swagger-person-delete-forbidden.png)
 
 ## 🔐 Configuration
 
