@@ -730,6 +730,69 @@ GO
    9. إجراءات المنتجات
    ================================================================ */
 
+CREATE   PROCEDURE [dbo].[SP_RevokeAllRefreshTokensForPerson]
+    @Person_ID INT,
+    @RowsAffected INT OUTPUT
+AS
+BEGIN
+    SET NOCOUNT ON;
+    SET XACT_ABORT ON;
+
+    UPDATE dbo.RefreshTokens
+    SET RevokedAt = SYSUTCDATETIME()
+    WHERE Person_ID = @Person_ID
+      AND RevokedAt IS NULL;
+
+    SET @RowsAffected = @@ROWCOUNT;
+END;
+GO
+
+CREATE   PROCEDURE [dbo].[SP_CancelOrder]
+    @Order_ID int,
+    @RowsAffected int OUTPUT
+AS
+BEGIN
+    SET NOCOUNT ON;
+    SET XACT_ABORT ON;
+    SET @RowsAffected = 0;
+    BEGIN TRY
+        BEGIN TRANSACTION;
+        DECLARE @CurrentStatus nvarchar(20);
+        SELECT @CurrentStatus = Status FROM dbo.Orders WITH (UPDLOCK, HOLDLOCK) WHERE Order_ID = @Order_ID;
+        IF @CurrentStatus IS NULL
+        BEGIN
+            ROLLBACK TRANSACTION;
+            RETURN;
+        END;
+        IF @CurrentStatus IN (N'Shipped', N'Delivered') THROW 52004, 'Orders cannot be cancelled after shipping or delivery.', 1;
+        IF @CurrentStatus = N'Cancelled'
+        BEGIN
+            ROLLBACK TRANSACTION;
+            RETURN;
+        END;
+        IF @CurrentStatus NOT IN (N'Pending', N'Confirmed') THROW 52005, 'Order status does not allow cancellation.', 1;
+        DECLARE @Items TABLE (Product_ID int NOT NULL PRIMARY KEY, Quantity int NOT NULL);
+        INSERT INTO @Items SELECT Product_ID, SUM(Quantity) FROM dbo.OrderItems WHERE Order_ID = @Order_ID GROUP BY Product_ID;
+        DECLARE @ReturnOperation_ID int = (SELECT Operation_ID FROM dbo.OperationTypes WHERE OperationName = N'Return');
+        IF @ReturnOperation_ID IS NULL THROW 52006, 'Return operation type is not configured.', 1;
+        UPDATE p WITH (UPDLOCK, HOLDLOCK)
+        SET RemainingQuantity = RemainingQuantity + i.Quantity
+        FROM dbo.Products p INNER JOIN @Items i ON i.Product_ID = p.Product_ID;
+        INSERT INTO dbo.InventoryLog (Operation_ID, Order_ID, Product_ID, QuantityChange, OldQuantity, NewQuantity, OldStatus, NewStatus, CreatedAt, Reason)
+        SELECT @ReturnOperation_ID, @Order_ID, i.Product_ID, i.Quantity, p.RemainingQuantity - i.Quantity, p.RemainingQuantity, N'Sold', N'Returned', SYSUTCDATETIME(), N'Order cancellation'
+        FROM @Items i INNER JOIN dbo.Products p ON p.Product_ID = i.Product_ID;
+        UPDATE dbo.Orders SET Status = N'Cancelled', DeliveredAt = NULL WHERE Order_ID = @Order_ID;
+        SET @RowsAffected = @@ROWCOUNT;
+        COMMIT TRANSACTION;
+    END TRY
+    BEGIN CATCH
+        IF XACT_STATE() <> 0 ROLLBACK TRANSACTION;
+        THROW;
+    END CATCH
+END;
+GO
+
+
 CREATE   PROCEDURE [dbo].[_SP_AddNewProduct]
     @Des nvarchar(1000),
     @ProductName nvarchar(150),
@@ -1005,50 +1068,6 @@ GO
 SET QUOTED_IDENTIFIER ON
 GO
 
-CREATE   PROCEDURE [dbo].[SP_CancelOrder]
-    @Order_ID int,
-    @RowsAffected int OUTPUT
-AS
-BEGIN
-    SET NOCOUNT ON;
-    SET XACT_ABORT ON;
-    SET @RowsAffected = 0;
-    BEGIN TRY
-        BEGIN TRANSACTION;
-        DECLARE @CurrentStatus nvarchar(20);
-        SELECT @CurrentStatus = Status FROM dbo.Orders WITH (UPDLOCK, HOLDLOCK) WHERE Order_ID = @Order_ID;
-        IF @CurrentStatus IS NULL
-        BEGIN
-            ROLLBACK TRANSACTION;
-            RETURN;
-        END;
-        IF @CurrentStatus IN (N'Shipped', N'Delivered') THROW 52004, 'Orders cannot be cancelled after shipping or delivery.', 1;
-        IF @CurrentStatus = N'Cancelled'
-        BEGIN
-            ROLLBACK TRANSACTION;
-            RETURN;
-        END;
-        IF @CurrentStatus NOT IN (N'Pending', N'Confirmed') THROW 52005, 'Order status does not allow cancellation.', 1;
-        DECLARE @Items TABLE (Product_ID int NOT NULL PRIMARY KEY, Quantity int NOT NULL);
-        INSERT INTO @Items SELECT Product_ID, SUM(Quantity) FROM dbo.OrderItems WHERE Order_ID = @Order_ID GROUP BY Product_ID;
-        DECLARE @ReturnOperation_ID int = (SELECT Operation_ID FROM dbo.OperationTypes WHERE OperationName = N'Return');
-        IF @ReturnOperation_ID IS NULL THROW 52006, 'Return operation type is not configured.', 1;
-        UPDATE p WITH (UPDLOCK, HOLDLOCK)
-        SET RemainingQuantity = RemainingQuantity + i.Quantity
-        FROM dbo.Products p INNER JOIN @Items i ON i.Product_ID = p.Product_ID;
-        INSERT INTO dbo.InventoryLog (Operation_ID, Order_ID, Product_ID, QuantityChange, OldQuantity, NewQuantity, OldStatus, NewStatus, CreatedAt, Reason)
-        SELECT @ReturnOperation_ID, @Order_ID, i.Product_ID, i.Quantity, p.RemainingQuantity - i.Quantity, p.RemainingQuantity, N'Sold', N'Returned', SYSUTCDATETIME(), N'Order cancellation'
-        FROM @Items i INNER JOIN dbo.Products p ON p.Product_ID = i.Product_ID;
-        UPDATE dbo.Orders SET Status = N'Cancelled', DeliveredAt = NULL WHERE Order_ID = @Order_ID;
-        SET @RowsAffected = @@ROWCOUNT;
-        COMMIT TRANSACTION;
-    END TRY
-    BEGIN CATCH
-        IF XACT_STATE() <> 0 ROLLBACK TRANSACTION;
-        THROW;
-    END CATCH
-END;
-GO
 /****** Object:  StoredProcedure [dbo].[SP_DeletePerson]    Script Date: 09/10/2026 10:53:21 م ******/
 SET ANSI_NULLS ON
 GO
@@ -1174,22 +1193,7 @@ GO
 SET QUOTED_IDENTIFIER ON
 GO
 
-CREATE   PROCEDURE [dbo].[SP_RevokeAllRefreshTokensForPerson]
-    @Person_ID INT,
-    @RowsAffected INT OUTPUT
-AS
-BEGIN
-    SET NOCOUNT ON;
-    SET XACT_ABORT ON;
 
-    UPDATE dbo.RefreshTokens
-    SET RevokedAt = SYSUTCDATETIME()
-    WHERE Person_ID = @Person_ID
-      AND RevokedAt IS NULL;
-
-    SET @RowsAffected = @@ROWCOUNT;
-END;
-GO
 /****** Object:  StoredProcedure [dbo].[SP_RevokeRefreshToken]    Script Date: 09/10/2026 10:53:21 م ******/
 SET ANSI_NULLS ON
 GO
