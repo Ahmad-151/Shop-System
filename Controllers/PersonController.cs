@@ -44,6 +44,7 @@ namespace ShopAPI.Controllers
         [ProducesResponseType(typeof(ApiResponse<PersonDTO>), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ApiResponse<PersonDTO>), StatusCodes.Status404NotFound)]
         [ProducesResponseType(typeof(ApiResponse<PersonDTO>), StatusCodes.Status403Forbidden)]
+        [ProducesResponseType(typeof(ApiResponse<PersonDTO>), StatusCodes.Status401Unauthorized)]
         public async Task<ActionResult<ApiResponse<PersonDTO>>> GetByIdAsync([FromRoute] int id)
         {
             if (id <= 0)
@@ -80,6 +81,8 @@ namespace ShopAPI.Controllers
         [ProducesResponseType(typeof(ApiResponse<bool>), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ApiResponse<bool>), StatusCodes.Status404NotFound)]
         [ProducesResponseType(typeof(ApiResponse<bool>), StatusCodes.Status403Forbidden)]
+        [ProducesResponseType(typeof(ApiResponse<bool>), StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(typeof(ApiResponse<bool>), StatusCodes.Status401Unauthorized)]
         public async Task<ActionResult<ApiResponse<bool>>> UpdateAsync(UpdatePersonDTO updatePersonDTO, [FromRoute] int id)
         {
             if (id <= 0)
@@ -116,6 +119,7 @@ namespace ShopAPI.Controllers
         [ProducesResponseType(typeof(ApiResponse<bool>), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ApiResponse<bool>), StatusCodes.Status404NotFound)]
         [ProducesResponseType(typeof(ApiResponse<bool>), StatusCodes.Status403Forbidden)]
+        [ProducesResponseType(typeof(ApiResponse<bool>), StatusCodes.Status401Unauthorized)]
         public async Task<ActionResult<ApiResponse<bool>>> DeleteAsync([FromRoute] int id)
         {
             if (id <= 0)
@@ -151,6 +155,9 @@ namespace ShopAPI.Controllers
         [EnableRateLimiting("PerUserPolicy")]
         [ProducesResponseType(typeof(ApiResponse<bool>), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ApiResponse<bool>), StatusCodes.Status404NotFound)]
+        [ProducesResponseType(typeof(ApiResponse<bool>), StatusCodes.Status403Forbidden)]
+        [ProducesResponseType(typeof(ApiResponse<bool>), StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(typeof(ApiResponse<bool>), StatusCodes.Status401Unauthorized)]
         public async Task<ActionResult<ApiResponse<bool>>> BannAsync(BannedPersonDTO bannedPersonDTO, [FromRoute] int id)
         {
             if (id <= 0)
@@ -189,6 +196,8 @@ namespace ShopAPI.Controllers
         [EnableRateLimiting("PerUserPolicy")]
         [ProducesResponseType(typeof(ApiResponse<bool>), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ApiResponse<bool>), StatusCodes.Status404NotFound)]
+        [ProducesResponseType(typeof(ApiResponse<bool>), StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(typeof(ApiResponse<bool>), StatusCodes.Status401Unauthorized)]
         public async Task<ActionResult<ApiResponse<bool>>> AddToFavouriteAsync([FromRoute] int DisCount, [FromRoute] int id)
         {
             if (DisCount is <= 0 or > 100 || id <= 0)

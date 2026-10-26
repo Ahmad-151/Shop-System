@@ -18,6 +18,7 @@ public sealed class CategoryController : ControllerBase
     [AllowAnonymous]
     [HttpGet]
     [ProducesResponseType(typeof(ApiResponse<List<CategoryDTO>>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<List<CategoryDTO>>), StatusCodes.Status404NotFound)]
     public async Task<ActionResult<ApiResponse<List<CategoryDTO>>>> GetAllAsync()
     {
         return Ok(ApiResponse<List<CategoryDTO>>.SuccessResponse(await _service.GetAllAsync(), "Categories retrieved successfully."));

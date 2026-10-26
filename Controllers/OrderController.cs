@@ -40,6 +40,8 @@ namespace ShopAPI.Controllers
         [HttpGet("mine/paged")]
         [EnableRateLimiting("PerUserPolicy")]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status403Forbidden)]
+        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status401Unauthorized)]
         public async Task<ActionResult<ApiResponse<object>>> GetMyOrders([FromQuery] int page = 1, [FromQuery] int pageSize = 20)
         {
@@ -60,9 +62,19 @@ namespace ShopAPI.Controllers
         [ProducesResponseType(typeof(ApiResponse<OrderDTO>), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ApiResponse<OrderDTO>), StatusCodes.Status404NotFound)]
         [ProducesResponseType(typeof(ApiResponse<OrderDTO>), StatusCodes.Status403Forbidden)]
+        [ProducesResponseType(typeof(ApiResponse<OrderDTO>), StatusCodes.Status400BadRequest)]
         [ProducesResponseType(typeof(ApiResponse<OrderDTO>), StatusCodes.Status401Unauthorized)]
         public async Task<ActionResult<ApiResponse<OrderDTO>>> GetOrderById([FromRoute] int id)
         {
+            if (id <= 0)
+            {
+                return BadRequest(new ApiResponse<OrderDTO>
+                {
+                    Data = null,
+                    IsSuccess = false,
+                    Message = "Invalid order ID."
+                });
+            }
             var order = await _orderService.GetByIdAsync(id);
             if (order == null)
             {
@@ -123,6 +135,9 @@ namespace ShopAPI.Controllers
         [EnableRateLimiting("PerUserPolicy")]
         [ProducesResponseType(typeof(ApiResponse<bool>), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ApiResponse<bool>), StatusCodes.Status404NotFound)]
+        [ProducesResponseType(typeof(ApiResponse<bool>), StatusCodes.Status403Forbidden)]
+        [ProducesResponseType(typeof(ApiResponse<bool>), StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(typeof(ApiResponse<bool>), StatusCodes.Status401Unauthorized)]
         public async Task<ActionResult<ApiResponse<bool>>> UpdateOrder([FromBody] UpdateOrderDTO orderDto, [FromRoute] int id)
         {
             var result = await _orderService.UpdateAsync(orderDto, id);
@@ -148,7 +163,9 @@ namespace ShopAPI.Controllers
         [EnableRateLimiting("PerUserPolicy")]
         [ProducesResponseType(typeof(ApiResponse<bool>), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ApiResponse<bool>), StatusCodes.Status404NotFound)]
+        [ProducesResponseType(typeof(ApiResponse<bool>), StatusCodes.Status403Forbidden)]
         [ProducesResponseType(typeof(ApiResponse<bool>), StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(typeof(ApiResponse<bool>), StatusCodes.Status401Unauthorized)]
         public async Task<ActionResult<ApiResponse<bool>>> DeleteOrder([FromRoute] int id)
         {
             if (id <= 0)
@@ -184,6 +201,9 @@ namespace ShopAPI.Controllers
         [EnableRateLimiting("PerUserPolicy")]
         [ProducesResponseType(typeof(ApiResponse<bool>), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ApiResponse<bool>), StatusCodes.Status404NotFound)]
+        [ProducesResponseType(typeof(ApiResponse<bool>), StatusCodes.Status403Forbidden)]
+        [ProducesResponseType(typeof(ApiResponse<bool>), StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(typeof(ApiResponse<bool>), StatusCodes.Status401Unauthorized)]
         public async Task<ActionResult<ApiResponse<bool>>> Exists([FromRoute] int id)
         {
             if (id <= 0)
