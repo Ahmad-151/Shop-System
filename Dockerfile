@@ -7,7 +7,7 @@ RUN dotnet restore "./ShopAPI.csproj"
 COPY . .
 RUN dotnet publish "./ShopAPI.csproj" --configuration Release --output /app/publish /p:UseAppHost=false
 
-From mcr.microsoft.com/dotnet/aspnet:10.0 AS final 
+FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS final 
 WORKDIR /app
 
 ENV ASPNETCORE_HTTP_PORTS=8080
