@@ -1,440 +1,297 @@
 ﻿# Shop System API
 
-A production-ready e-commerce backend API built with **ASP.NET Core 10**, **SQL Server**, and **Docker**. Designed as an educational project with enterprise-grade features including JWT authentication, role-based authorization, request auditing, rate limiting, and comprehensive test coverage.
+An e-commerce backend API built with **ASP.NET Core 10**, **SQL Server** (ADO.NET + stored procedures) and **Docker**.
+
+Built as a portfolio project to practice secure, testable API design: JWT authentication with refresh-token rotation, role- and ownership-based authorization, idempotent order creation, request auditing, rate limiting, health checks, and unit + integration tests.
+
+> The Docker setup is meant for **local demo and development**. Read [Production Notes](#-production-notes) before deploying anywhere real.
+
+<!-- Add a Swagger screenshot or a short GIF of the Quick Start here -->
 
 ---
 
-## 🎯 Overview
+## 🚀 Quick Start (Docker)
 
-Shop System API provides a complete backend for managing:
-- **Authentication & Authorization** — User registration, login, JWT tokens, role-based access control
-- **Products & Categories** — Full CRUD operations with inventory management
-- **Orders** — Order creation, tracking, cancellation with idempotency support
-- **Auditing** — Request/response logging for compliance and debugging
-- **Rate Limiting** — Protection against abuse with configurable policies per endpoint
+### Prerequisites
 
-### Key Features
+- [Docker Desktop](https://www.docker.com/products/docker-desktop/) installed and **running** (Linux containers)
+- At least **2 GB of RAM** available to Docker (required by SQL Server)
+- Ports **8080** and **1433** free on your machine
+- Git
 
-✅ **Security First**
-- JWT access tokens (30 min default) + rotating refresh tokens (7 days)
-- BCrypt password hashing with salt
-- SHA-256 refresh-token rotation and reuse detection
-- CORS with explicit origin whitelisting
-- Idempotent order creation with payload validation
+### Run it
 
-✅ **Production-Ready**
-- Comprehensive error handling and validation (FluentValidation)
-- Request correlation IDs for tracing
-- Background auditing service (non-blocking writes)
-- Health checks (`/health/live`, `/health/ready`)
-- SQL Server integration tests and unit tests (xUnit + Moq)
-- GitHub Actions CI/CD with code coverage reports
+**Windows (PowerShell):**
 
-✅ **Developer-Friendly**
-- Swagger/OpenAPI documentation (Development mode)
-- Structured logging with JSON output
-- Docker Compose for local development
-- User Secrets for secure local configuration
-- RESTful API conventions with 201 Created responses
+```powershell
+git clone https://github.com/Ahmad-151/Shop-System.git
+cd Shop-System
+copy .env.example .env
+docker compose up --build -d
+```
+
+**macOS / Linux:**
+
+```bash
+git clone https://github.com/Ahmad-151/Shop-System.git
+cd Shop-System
+cp .env.example .env
+docker compose up --build -d
+```
+
+The first run downloads the SQL Server and .NET images, so it can take several minutes. Later runs start in about a minute.
+
+Check that everything is up:
+
+```bash
+docker compose ps -a
+```
+
+Expected: `db` and `api` are **Up**, and `db-init` is **Exited (0)** (it is a one-time job that creates the database).
+
+### Try the API
+
+1. Open **http://localhost:8080/swagger**
+2. Register a user, then log in to get an access token.
+3. Click **Authorize** and paste the token.
+4. Create an order and explore the other endpoints.
+
+Health checks: `http://localhost:8080/health/live` and `http://localhost:8080/health/ready`.
+
+### Stop and clean up
+
+```bash
+docker compose down        # stop containers, keep the database volume
+docker compose down -v     # stop and delete everything (fresh start)
+```
+
+> ⚠️ **Local demo only.** `.env.example` ships with demo credentials so the project runs out of the box. Never reuse them in a real deployment.
+
+---
+
+## ✨ Features
+
+**Security**
+- JWT access tokens + rotating refresh tokens, with reuse detection
+- BCrypt password hashing
+- Role-based and ownership-based authorization (customer / admin)
+- Explicit CORS origin whitelisting
+- Idempotent order creation (`Idempotency-Key` header)
+- Rate limiting with per-endpoint policies
+
+**Reliability and observability**
+- Centralized exception handling and input validation (FluentValidation)
+- Request correlation IDs
+- Background audit logging (non-blocking writes)
+- Liveness and readiness health checks
+- Unit tests (xUnit + Moq) and SQL Server integration tests
+- GitHub Actions workflow for build and tests
+
+**Developer experience**
+- Swagger / OpenAPI (enabled in the Development environment)
+- One-command Docker Compose setup
+- User Secrets support for local configuration without Docker
 
 ---
 
 ## 📋 Technology Stack
 
-| Component | Tech | Version |
-|-----------|------|---------|
-| **Language** | C# | .NET 10 |
-| **Web Framework** | ASP.NET Core | 10.0 |
-| **Database** | SQL Server | 2025+** (prod) | (Developer edition for local development; use an appropriately licensed edition in production) |
-| **Data Access** | ADO.NET | Native SQL + Stored Procedures |
-| **Authentication** | JWT Bearer | HS256 |
-| **Validation** | FluentValidation | 11.3.1 |
-| **Password Hashing** | BCrypt.Net-Next | 4.2.0 |
-| **Testing** | xUnit + Moq | Latest |
-| **Containerization** | Docker & Compose | Latest |
-| **CI/CD** | GitHub Actions | Build, Test, Coverage |
-
----
-
-## 🚀 Quick Start
-
-### Prerequisites
-
-- **Docker Desktop** (with Linux containers enabled)
-- **Git**
-- **.NET 10 SDK** (for local development)
-
-### 1️⃣ Clone & Setup
-
-```bash
-# Clone the repository
-git clone <repository-url>
-cd Shop-System
-
-# Copy environment template
-cp .env.example .env
-
-# Edit .env with strong local passwords
-# - MSSQL_SA_PASSWORD: (min 8 chars, uppercase, lowercase, number, special char)
-# - JWT_KEY: (random 32+ bytes, e.g., use: openssl rand -base64 32)
-```
-
-### 2️⃣ Run with Docker
-
-```bash
-# Start all services (SQL Server, API)
-docker compose up --build -d
-
-# Check status
-docker compose ps
-
-# View logs
-docker compose logs -f api
-```
-
-Services will be available at:
-- **API**: `http://localhost:8080`
-- **SQL Server**: `localhost:1433` (sa user)
-- **Swagger**: `http://localhost:8080/swagger` (Development mode)
-- **Health Check**: `http://localhost:8080/health/ready`
-
-### 3️⃣ Stop Services
-
-```bash
-docker compose down        # Stop containers, keep volumes
-docker compose down -v    # Stop & delete everything (fresh start)
-```
-
----
-
-## 🔧 Local Development (Without Docker)
-
-### Setup
-
-```bash
-# Restore NuGet packages
-dotnet restore
-
-# Initialize user secrets (one-time)
-dotnet user-secrets init
-
-# Set required secrets
-dotnet user-secrets set "ConnectionStrings:ShopDbConnection" \
-  "Server=localhost;Database=ShopDB;Trusted_Connection=True;TrustServerCertificate=True;"
-
-dotnet user-secrets set "JwtSettings:Key" "<generate-random-32-bytes>"
-```
-
-### Run
-
-```bash
-# Start the API (runs on http://localhost:5235)
-dotnet run
-
-# Access Swagger
-open http://localhost:5235/swagger
-```
+| Component | Technology |
+|-----------|------------|
+| Language / Framework | C# on .NET 10, ASP.NET Core 10 |
+| Database | SQL Server 2025 (Developer edition for local use; use a properly licensed edition in production) |
+| Data access | ADO.NET with stored procedures |
+| Authentication | JWT Bearer (HS256) |
+| Validation | FluentValidation |
+| Password hashing | BCrypt.Net-Next |
+| Testing | xUnit, Moq |
+| Containers | Docker, Docker Compose |
+| CI | GitHub Actions |
 
 ---
 
 ## 📚 API Endpoints
 
-All endpoints use `/api` prefix. Authentication required unless noted.
+All routes use the `/api` prefix.
 
-### Authentication (Public)
+### Authentication
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| `POST` | `/api/Auth/Register` | Create new account |
-| `POST` | `/api/Auth/Login` | Authenticate and get tokens |
-| `POST` | `/api/Auth/RefreshToken` | Refresh expired access token |
-| `POST` | `/api/Auth/Logout` | Invalidate refresh token |
+| `POST` | `/api/Auth/Register` | Create a new account |
+| `POST` | `/api/Auth/Login` | Authenticate and receive tokens |
+| `POST` | `/api/Auth/RefreshToken` | Exchange a refresh token for new tokens |
+| `POST` | `/api/Auth/Logout` | Invalidate the refresh token |
 
 ### Products
 
 | Method | Endpoint | Auth | Description |
 |--------|----------|------|-------------|
-| `GET` | `/api/Product/paged` | No | List products (paginated) |
-| `GET` | `/api/Product/{id}` | No | Get product details |
-| `POST` | `/api/Product` | Admin | Create product |
-| `PUT` | `/api/Product/{id}` | Admin | Update product |
-| `DELETE` | `/api/Product/{id}` | Admin | Delete product |
+| `GET` | `/api/Product/paged` | Public | List products (paginated) |
+| `GET` | `/api/Product/{id}` | Public | Get product details |
+| `POST` | `/api/Product` | Admin | Create a product |
+| `PUT` | `/api/Product/{id}` | Admin | Update a product |
+| `DELETE` | `/api/Product/{id}` | Admin | Delete a product |
 
 ### Orders
 
 | Method | Endpoint | Auth | Description |
 |--------|----------|------|-------------|
-| `POST` | `/api/Order` | Yes | Create order (idempotent) |
-| `GET` | `/api/Order/mine/paged` | Yes | List my orders |
-| `GET` | `/api/Order/{id}` | Owner/Admin | Get order details |
-| `PUT` | `/api/Order/{id}/cancel` | Owner/Admin | Cancel order |
+| `POST` | `/api/Order` | User | Create an order (idempotent) |
+| `GET` | `/api/Order/mine/paged` | User | List my orders |
+| `GET` | `/api/Order/{id}` | Owner / Admin | Get order details |
+| `PUT` | `/api/Order/{id}/cancel` | Owner / Admin | Cancel an order |
 
-### People (Admin Only)
+### People
 
 | Method | Endpoint | Auth | Description |
 |--------|----------|------|-------------|
-| `GET` | `/api/Person/{id}` | Yes | Get person profile |
-| `PUT` | `/api/Person/{id}` | Owner/Admin | Update profile |
-| `POST` | `/api/Person/{id}/ban` | Admin | Ban user |
+| `GET` | `/api/Person/{id}` | User | Get a person profile |
+| `PUT` | `/api/Person/{id}` | Owner / Admin | Update a profile |
+| `POST` | `/api/Person/{id}/ban` | Admin | Ban a user |
 
-### Health Checks
-
-| Endpoint | Purpose |
-|----------|---------|
-| `GET /health/live` | Liveness probe (is API running?) |
-| `GET /health/ready` | Readiness probe (can API connect to DB?) |
-
-### Example: Login & Create Order
-
-```bash
-# 1. Register
-curl -X POST http://localhost:8080/api/Auth/Register \
-  -H "Content-Type: application/json" \
-  -d '{
-    "personName": "John Doe",
-    "phoneNumber": "0912345678",
-    "address": "Damascus",
-    "password": "MySecurePass123"
-  }'
-
-# 2. Login (save the access token)
-TOKEN=$(curl -X POST http://localhost:8080/api/Auth/Login \
-  -H "Content-Type: application/json" \
-  -d '{
-    "phoneNumber": "0912345678",
-    "password": "MySecurePass123"
-  }' | jq -r '.data')
-
-# 3. Create Order (with idempotency key)
-curl -X POST http://localhost:8080/api/Order \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "Idempotency-Key: order-unique-123" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "items": [
-      { "productId": 1, "quantity": 2 }
-    ]
-  }'
-```
+A ready-to-use request collection is available in [`ShopAPI.http`](ShopAPI.http) (VS Code REST Client extension).
 
 ---
 
 ## 🗄️ Database
 
-### Schema & Initialization
-
-The database is auto-initialized on first Docker Compose run via `Database/init-db.sh`:
+With Docker, the database is created automatically on first run by the `db-init` service (`Database/init-db.sh`), which:
 
 1. Waits for SQL Server to accept connections
-2. Checks if `ShopDB` exists and is initialized
-3. Runs `Database/ShopDB.Docker.sql` if new
-4. Records initialization marker to prevent re-runs
+2. Checks whether `ShopDB` already exists and is initialized
+3. Runs the schema script if it is new
+4. Records an initialization marker so it never runs twice
 
-**Schemas:**
-- `Persons` — Users with roles (Customer, Admin)
-- `Products` — Catalog with inventory
-- `Categories` — Product grouping
-- `Orders` — Order headers
-- `OrderItems` — Order line items
-- `RefreshTokens` — Token rotation storage
-- `InventoryLog` — Audit trail for stock changes
-- `AuditLog` — API request/response logging
-- **14 tables** | **20+ stored procedures**
-
-### Local Development Database
-
-If using SQL Server locally (not Docker):
-
-1. Restore `Database/ShopDB.Full.sql`
-2. Update `ConnectionStrings:ShopDbConnection` in user secrets
+The scripts live in the [`Database/`](Database) folder.
 
 ---
 
-## 🔐 Configuration & Security
+## 🔐 Configuration
 
-### Environment Variables (`.env`)
+### Environment variables (`.env`)
 
-| Variable | Required | Example |
-|----------|----------|---------|
-| `MSSQL_SA_PASSWORD` | ✅ | `SecureP@ss123!` |
-| `JWT_KEY` | ✅ | `base64-random-32-bytes` |
-| `CORS_ORIGIN` | ✅ | `http://localhost:3000` |
-| `TRUSTED_PROXY_IP` | No | `10.0.0.1` (if behind proxy) |
+| Variable | Description |
+|----------|-------------|
+| `MSSQL_SA_PASSWORD` | SQL Server `sa` password. Must be 8+ characters with at least 3 of: uppercase, lowercase, digits, symbols. Avoid `$`, `#` and quotes. |
+| `JWT_KEY` | Secret used to sign JWTs. Use at least 32 random bytes. |
 
-### Security Best Practices
+Generate a random key:
 
-⚠️ **DO NOT commit `.env`** — `.gitignore` excludes it by default
+```bash
+# Linux / macOS
+openssl rand -base64 32
+```
 
-✅ **Production Checklist:**
-- Use **HTTPS only** (enable TLS in reverse proxy)
-- Set **strong passwords** (≥15 chars, mixed case, numbers, symbols)
-- Rotate **JWT_KEY** periodically
-- Use **environment variables** or **Azure Key Vault** for secrets (never in code)
-- Enable **CORS** only for trusted origins
-- Set **rate limiting** policies based on expected load
-- Configure **SQL Server authentication** with strong SA password
-- Use **read-only database replicas** for reporting
-- Monitor **AuditLog** for suspicious activity
+```powershell
+# Windows PowerShell
+[Convert]::ToBase64String((1..32 | % { Get-Random -Maximum 256 }))
+```
+
+CORS allowed origins are configured in `compose.yaml` (`Cors__AllowedOrigins__0`). Change it if your frontend runs on another origin.
+
+> `.env` is excluded by `.gitignore`. Never commit it.
+
+---
+
+## 🔧 Local Development (without Docker)
+
+```bash
+dotnet restore
+
+# One-time: store secrets outside the repository
+dotnet user-secrets init
+dotnet user-secrets set "ConnectionStrings:ShopDbConnection" "Server=localhost;Database=ShopDB;Trusted_Connection=True;TrustServerCertificate=True;"
+dotnet user-secrets set "JwtSettings:Key" "<random-32-byte-secret>"
+
+dotnet run
+```
+
+You need a local SQL Server with the schema from the [`Database/`](Database) folder applied.
 
 ---
 
 ## 🧪 Testing
 
-### Run Tests Locally
-
 ```bash
-# Restore dependencies
-dotnet restore
-
-# Run all tests
 dotnet test ShopAPI.slnx
-
-# Run specific test project
-dotnet test ShopAPI.UnitTests --logger "console;verbosity=minimal"
-dotnet test ShopAPI.IntegrationTests
-
-# With coverage
-dotnet test ShopAPI.slnx /p:CollectCoverage=true
 ```
 
-### Test Projects
+| Project | Scope |
+|---------|-------|
+| `ShopAPI.UnitTests` | Business logic, validation, services |
+| `ShopAPI.IntegrationTests` | End-to-end flows against SQL Server |
 
-- **ShopAPI.UnitTests** — Business logic, validation, service layers
-- **ShopAPI.IntegrationTests** — SQL Server end-to-end flows
-
-### CI/CD Pipeline
-
-GitHub Actions workflow (`.github/workflows/build.yml`):
-- ✅ Restore dependencies
-- ✅ Build Release configuration
-- ✅ Run all tests
-- ✅ Collect code coverage
-- ✅ Upload test results as artifacts
+A GitHub Actions workflow in [`.github/workflows`](.github/workflows) builds the solution and runs the tests on every push.
 
 ---
 
 ## 🏗️ Project Structure
 
 ```
-ShopAPI/
-├── Controllers/          # HTTP endpoints (Auth, Product, Order, Person, Category)
-├── Services/             # Business logic (Auth, Order, Product, etc.)
-├── Repositories/         # Data access layer (SQL + stored procedures)
-├── DTOClasses/          # Request/response data transfer objects
-├── FluentValidation/    # Input validation rules
-├── Authorization/       # Policies, handlers, requirements
-├── Middlewares/         # Correlation ID, exception handling, telemetry
-├── Observability/       # Auditing, health checks, logging
-├── Infrastructure/      # Database connection factory
-├── Settings/            # Configuration classes (JwtSettings, etc.)
-├── Response/            # Standardized API response wrapper
-├── Extensions/          # Helper methods
-├── Database/            # SQL scripts (schema, stored procedures)
-├── docker/              # Dockerfile, docker-compose, init scripts
-├── .github/workflows/   # CI/CD (GitHub Actions)
-├── ShopAPI.UnitTests/   # Unit & integration tests
-└── Program.cs           # Dependency injection, middleware, startup
+Shop-System/
+├── Authorization/             # Policies, handlers, requirements
+├── Controllers/               # HTTP endpoints
+├── Database/                  # SQL scripts and init-db.sh
+├── DTOClasses/                # Request / response DTOs
+├── Extensions/                # Helper extensions
+├── FluentValidation/          # Input validators
+├── Infrastructure/            # Database connection factory
+├── Middlewares/               # Exception handling, correlation IDs
+├── Observability/             # Auditing, health checks, logging
+├── Repositories/              # Data access (SQL + stored procedures)
+├── Response/                  # Standard API response wrapper
+├── Services/                  # Business logic
+├── Settings/                  # Strongly typed configuration
+├── ShopAPI.UnitTests/
+├── ShopAPI.IntegrationTests/
+├── .github/workflows/         # CI
+├── compose.yaml
+├── Dockerfile
+├── .env.example
+└── Program.cs
 ```
 
 ---
 
-## 🐛 Troubleshooting
+## 🛠 Troubleshooting
 
-### Docker Connection Issue
-```
-Error: dial tcp: lookup mcr.microsoft.com: no such host
-```
-**Solution:** Check internet connection and DNS. Ensure Docker Desktop is running.
-
-### Database Connection Failed
-```
-Error: Cannot open database "ShopDB" requested by the login
-```
-**Solution:** 
-- Verify `MSSQL_SA_PASSWORD` is set in `.env`
-- Ensure SQL Server is healthy: `docker compose logs db`
-- Check `ConnectionStrings__ShopDbConnection` in compose.yaml
-
-### JWT Configuration Error
-```
-Error: JwtSettings:Key must be at least 32 bytes long
-```
-**Solution:** Generate a proper key and update `.env`:
-```bash
-# Linux/Mac
-openssl rand -base64 32
-
-# Windows PowerShell
-[Convert]::ToBase64String((1..32 | % { Get-Random -Maximum 256 })) 
-```
-
-### CORS Error in Browser
-```
-Error: Access to XMLHttpRequest blocked by CORS policy
-```
-**Solution:** Add your frontend URL to `CORS_ORIGIN` in `.env`:
-```
-CORS_ORIGIN=http://localhost:3000
-```
+| Problem | Fix |
+|---|---|
+| `failed to connect to the docker API` | Docker Desktop is not running. Start it and wait until the engine is running. |
+| `no configuration file provided` | Run the commands from inside the `Shop-System` folder. |
+| `port is already allocated` | Another container, or a local SQL Server, is using port 1433 or 8080. Run `docker ps`, stop the other container, or change the published port in `compose.yaml`. |
+| `db` exits right after starting | The SA password in `.env` is too weak. It needs 8+ characters and at least 3 of: uppercase, lowercase, digits, symbols. Avoid `$`, `#` and quotes. Then run `docker compose down -v` and start again. |
+| `db-init` fails with `invalid option name` | `Database/init-db.sh` has Windows (CRLF) line endings. Convert it to LF (`sed -i 's/\r$//' Database/init-db.sh`), then `docker compose down -v` and `up` again. The repository's `.gitattributes` normally prevents this on a fresh clone. |
+| `db-init` keeps waiting | SQL Server never became ready. Check `docker compose logs db` for the reason (usually the password). |
+| Everything is slow on first run | The first build downloads large images. Later runs are much faster. |
 
 ---
 
-## 📖 Documentation Files
+## 🔒 Production Notes
 
-- **README.md** — This file
-- **CHANGELOG.md** — Version history and fixes
-- **.env.example** — Environment variable template
-- **ShopAPI.http** — REST client file (VS Code REST Client extension)
+The default Docker setup is not production-hardened. Before deploying:
+
+- Generate your own strong SA password and a random JWT key. Never reuse the demo values.
+- Run behind HTTPS (reverse proxy) and set `ASPNETCORE_ENVIRONMENT=Production`, which disables Swagger.
+- Do not expose port 1433 publicly.
+- Keep secrets in environment variables or a secret manager, never in the repository.
+- Use a properly licensed SQL Server edition.
+- Monitor the audit log for suspicious activity.
 
 ---
 
 ## 🤝 Contributing
 
 1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit changes (`git commit -m 'Add amazing feature'`)
-4. Push to branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
+2. Create a feature branch (`git checkout -b feature/my-feature`)
+3. Commit your changes and push the branch
+4. Open a Pull Request
 
-### Code Standards
-
-- Use **C# naming conventions** (PascalCase for public members)
-- Write **unit tests** for new services
-- Add **integration tests** for database operations
-- Follow **SOLID principles**
-- Add **XML comments** for public APIs
-- Ensure tests pass locally before PR
+Please add tests for new services and make sure `dotnet test` passes before opening a PR.
 
 ---
 
 ## 📄 License
 
-This project is for educational purposes. Refer to LICENSE file for details.
-
----
-
-## 📞 Support
-
-For issues, questions, or suggestions:
-1. Check existing **GitHub Issues**
-2. Review **CHANGELOG.md** for recent changes
-3. Verify **troubleshooting section** above
-4. Check Docker logs: `docker compose logs -f`
-
----
-
-## 🎓 Learning Resources
-
-This project demonstrates:
-- RESTful API design with proper HTTP semantics
-- Asynchronous programming patterns in C#
-- Dependency injection and service-oriented architecture
-- SQL Server integration with stored procedures
-- JWT authentication and authorization
-- Docker containerization best practices
-- Unit and integration testing strategies
-- CI/CD with GitHub Actions
-
----
-
-**Built with ❤️ using ASP.NET Core 10 and SQL Server**
+MIT License. See [LICENSE](LICENSE).
