@@ -20,6 +20,23 @@ done
 
 echo "SQL Server is ready. Checking database initialization state..."
 
+echo "Waiting for all databases to be ONLINE..."
+for i in $(seq 1 60); do
+  not_online=$("$SQLCMD" -S db,1433 -U sa -P "$MSSQL_SA_PASSWORD" -No -b -h -1 -W \
+    -Q "SET NOCOUNT ON; SELECT COUNT(*) FROM sys.databases WHERE state <> 0" 2>/dev/null \
+    | tr -d '[:space:]' || true)
+  if [ "$not_online" = "0" ]; then
+    echo "All databases are ONLINE."
+    break
+  fi
+  sleep 2
+done
+
+if [ "$not_online" != "0" ]; then
+  echo "ERROR: databases did not become ONLINE within 120 seconds." >&2
+  exit 1
+fi
+
 DATABASE_STATE=$(
   "$SQLCMD" \
     -S db,1433 \
