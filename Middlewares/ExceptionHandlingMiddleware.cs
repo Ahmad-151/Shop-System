@@ -10,7 +10,7 @@ namespace ShopAPI.Middlewares
         private readonly RequestDelegate _next;
         private readonly ILogger<ExceptionHandlingMiddleware> _logger;
         private readonly IHostEnvironment _env;
-
+        private static readonly JsonSerializerOptions _jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
         public ExceptionHandlingMiddleware
             (
             RequestDelegate next,
@@ -31,7 +31,12 @@ namespace ShopAPI.Middlewares
             }
             catch (OperationCanceledException) when (context.RequestAborted.IsCancellationRequested)
             {
-                _logger.LogDebug("Request was cancelled by the client. CorrelationId: {CorrelationId}", context.Items[CorrelationIdMiddleware.HeaderName]);
+                _logger.LogDebug(
+                    "Request was cancelled by the client. CorrelationId: {CorrelationId}",
+                    GetCorrelationId(context));
+
+                if (!context.Response.HasStarted)
+                    context.Response.StatusCode = 499;
             }
             catch (SqlException sqlEx)
             {
@@ -41,18 +46,35 @@ namespace ShopAPI.Middlewares
                     sqlEx,
                     "A database error occurred (number {SqlErrorNumber}). CorrelationId: {CorrelationId}",
                     sqlEx.Number,
-                    context.Items[CorrelationIdMiddleware.HeaderName]);
+                    GetCorrelationId(context));
 
                 if (context.Response.HasStarted) throw;
                 await HandleSqlExceptionAsync(context, sqlEx);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "An unhandled exception occurred. CorrelationId: {CorrelationId}", context.Items[CorrelationIdMiddleware.HeaderName]);
+                _logger.LogError(
+                    ex,
+                    "An unhandled exception occurred. CorrelationId: {CorrelationId}",
+                    GetCorrelationId(context));
 
                 if (context.Response.HasStarted) throw;
                 await HandleExceptionAsync(context, ex, _env);
             }
+        }
+
+        private static string? GetCorrelationId(HttpContext context) =>
+         context.Items[CorrelationIdMiddleware.HeaderName]?.ToString();
+
+        private static Task WriteFailureAsync(
+            HttpContext context, HttpStatusCode statusCode, string message, List<string>? errors = null)
+        {
+            context.Response.StatusCode = (int)statusCode;
+
+            var response = ApiResponse<string>.FailureResponse(
+                message, errors, GetCorrelationId(context));
+
+            return context.Response.WriteAsJsonAsync(response, _jsonOptions);
         }
 
         private static Task HandleSqlExceptionAsync(HttpContext context, SqlException sqlEx)
@@ -66,33 +88,20 @@ namespace ShopAPI.Middlewares
                 _ => (HttpStatusCode.InternalServerError, "An unexpected database error occurred.")
             };
 
-            context.Response.ContentType = "application/json";
-            context.Response.StatusCode = (int)statusCode;
-
-            var response = ApiResponse<string>.FailureResponse(message);
-            var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
-            return context.Response.WriteAsync(JsonSerializer.Serialize(response, jsonOptions));
+            return WriteFailureAsync(context, statusCode, message);
         }
 
         private static Task HandleExceptionAsync(HttpContext context, Exception exception, IHostEnvironment env)
         {
-            context.Response.ContentType = "application/json";
-            context.Response.StatusCode = (int)HttpStatusCode.InternalServerError;
-
             var errors = env.IsDevelopment()
-            ? new List<string> { exception.Message, exception.StackTrace ?? string.Empty }
-            : new List<string>();
+                ? new List<string> { exception.Message, exception.StackTrace ?? string.Empty }
+                : new List<string>();
 
-            var response = ApiResponse<string>.FailureResponse
-            (
+            return WriteFailureAsync(
+                context,
+                HttpStatusCode.InternalServerError,
                 "An unexpected internal server error occurred. Please try again later.",
-                errors
-            );
-
-            var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
-            var jsonResponse = JsonSerializer.Serialize(response, jsonOptions);
-
-            return context.Response.WriteAsync(jsonResponse);
+                errors);
         }
     }
 }

@@ -56,7 +56,7 @@ public sealed class RequestTelemetryMiddleware
                 };
                 RequestCounter.Add(1, tags);
                 Duration.Record(stopwatch.Elapsed.TotalMilliseconds, tags);
-                if (status >= 400) ErrorCounter.Add(1, tags);
+                if (status >= 500) ErrorCounter.Add(1, tags);
 
                 var userId = context.User.FindFirst("sub")?.Value ?? "anonymous";
                 _logger.LogInformation(

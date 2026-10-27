@@ -1,4 +1,6 @@
-﻿namespace ShopAPI.Response
+﻿using System.Text.Json.Serialization;
+
+namespace ShopAPI.Response
 {
     public class ApiResponse<T>
     {
@@ -6,6 +8,9 @@
         public string Message { get; set; }
         public T Data { get; set; }
         public List<string> Errors { get; set; }
+
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] 
+        public string? CorrelationId { get; set; }
 
         public ApiResponse()
         {
@@ -21,13 +26,14 @@
             };
         }
 
-        public static ApiResponse<T> FailureResponse(string message, List<string> errors = null)
+        public static ApiResponse<T> FailureResponse(string message, List<string> errors = null, string? correlationId = null)
         {
             return new ApiResponse<T>
             {
                 IsSuccess = false,
                 Message = message,
-                Errors = errors ?? new List<string>()
+                Errors = errors ?? new List<string>(),
+                CorrelationId = correlationId
             };
         }
     }
