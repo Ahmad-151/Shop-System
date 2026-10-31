@@ -252,8 +252,7 @@ It also sets `SHOP_SQL_CONNECTION` for the current terminal, so run
 | `ShopAPI.UnitTests` | Business logic, validation, services |
 | `ShopAPI.IntegrationTests` | Concurrency, idempotency and order-state rules against SQL Server |
 
-A GitHub Actions workflow in [`.github/workflows`](.github/workflows) builds the solution and runs the unit tests on every push.
-
+A GitHub Actions workflow in [`.github/workflows`](.github/workflows) builds the solution, starts a temporary SQL Server container, builds the `ShopDB_Test` database with the same script described above, and runs all unit and integration tests on every push and pull request.
 ---
 
 ## 🏗️ Project Structure
