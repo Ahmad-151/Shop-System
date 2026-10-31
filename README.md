@@ -221,16 +221,38 @@ You need a local SQL Server with the schema from the [`Database/`](Database) fol
 
 ## 🧪 Testing
 
+### Unit tests (no setup needed)
+
 ```bash
-dotnet test ShopAPI.slnx
+dotnet test ShopAPI.UnitTests
 ```
+
+### Integration tests (need a SQL Server test database)
+
+The integration tests run against a real SQL Server database. If the
+`SHOP_SQL_CONNECTION` environment variable is not set, they are **skipped**
+(you will see `Skipped: 3`). To run them on Windows (PowerShell):
+
+```powershell
+docker compose up -d db
+$env:MSSQL_SA_PASSWORD = "<same value as in your .env>"
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass   # only if scripts are blocked
+. .\Database\setup-test-db.ps1
+dotnet test
+```
+
+`setup-test-db.ps1` creates a separate `ShopDB_Test` database inside the same
+container (your `ShopDB` data is never touched), applies the schema from
+`Database/ShopDB.Docker.sql`, and adds the seed rows in `Database/test-seed.sql`.
+It also sets `SHOP_SQL_CONNECTION` for the current terminal, so run
+`dotnet test` from the **same window**.
 
 | Project | Scope |
 |---------|-------|
 | `ShopAPI.UnitTests` | Business logic, validation, services |
-| `ShopAPI.IntegrationTests` | End-to-end flows against SQL Server |
+| `ShopAPI.IntegrationTests` | Concurrency, idempotency and order-state rules against SQL Server |
 
-A GitHub Actions workflow in [`.github/workflows`](.github/workflows) builds the solution and runs the tests on every push.
+A GitHub Actions workflow in [`.github/workflows`](.github/workflows) builds the solution and runs the unit tests on every push.
 
 ---
 
@@ -240,7 +262,7 @@ A GitHub Actions workflow in [`.github/workflows`](.github/workflows) builds the
 Shop-System/
 ├── Authorization/             # Policies, handlers, requirements
 ├── Controllers/               # HTTP endpoints
-├── Database/                  # SQL scripts and init-db.sh
+├── Database/                  # SQL scripts, init-db.sh, test DB setup (setup-test-db.ps1, test-seed.sql)
 ├── DTOClasses/                # Request / response DTOs
 ├── Extensions/                # Helper extensions
 ├── FluentValidation/          # Input validators
@@ -273,6 +295,8 @@ Shop-System/
 | `db-init` fails with `invalid option name` | `Database/init-db.sh` has Windows (CRLF) line endings. Convert it to LF (`sed -i 's/\r$//' Database/init-db.sh`), then `docker compose down -v` and `up` again. The repository's `.gitattributes` normally prevents this on a fresh clone. |
 | `db-init` keeps waiting | SQL Server never became ready. Check `docker compose logs db` for the reason (usually the password). |
 | Everything is slow on first run | The first build downloads large images. Later runs are much faster. |
+| `running scripts is disabled on this system` (PowerShell) | Run `Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass` in the same window (it only affects that window), then run the script again. |
+| Integration tests show `Skipped: 3` | `SHOP_SQL_CONNECTION` is not set in the current terminal. Run `. .\Database\setup-test-db.ps1` first, then `dotnet test` from the same window. |
 
 ---
 

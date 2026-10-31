@@ -59,7 +59,7 @@ public sealed class SqlServerBehaviorTests
         var productId = await CreateProductAsync(connection, 2);
         var personId = await GetCustomerIdAsync(connection);
         var order = await CreateOrderAsync(productId, personId, Guid.NewGuid().ToString("N"));
-        Assert.True(order.Success);
+        Assert.True(order.Success, order.Error);
         await TransitionAsync(connection, order.OrderId, "Confirmed");
         await TransitionAsync(connection, order.OrderId, "Shipped");
         var exception = await Assert.ThrowsAsync<SqlException>(() => CancelAsync(connection, order.OrderId));
@@ -68,8 +68,16 @@ public sealed class SqlServerBehaviorTests
 
     private static void EnsureConnection()
     {
-        if (string.IsNullOrWhiteSpace(ConnectionString))
-            throw SkipException.ForSkip("Set SHOP_SQL_CONNECTION to run SQL Server integration tests.");
+        if (!string.IsNullOrWhiteSpace(ConnectionString))
+            return;
+
+        if (Environment.GetEnvironmentVariable("CI") == "true")
+            throw new InvalidOperationException(
+                "SHOP_SQL_CONNECTION is required in CI.");
+
+        throw SkipException.ForSkip(
+               "SQL Server integration tests skipped: SHOP_SQL_CONNECTION is not set. " +
+               "See README.md, section 'Integration tests'.");
     }
 
     private static async Task<int> GetCustomerIdAsync(SqlConnection connection)
@@ -89,7 +97,7 @@ public sealed class SqlServerBehaviorTests
         return Convert.ToInt32(await command.ExecuteScalarAsync());
     }
 
-    private static async Task<(bool Success, int OrderId)> CreateOrderAsync(int productId, int personId, string key, string? requestHash = null)
+    private static async Task<(bool Success, int OrderId, string? Error)> CreateOrderAsync(int productId, int personId, string key, string? requestHash = null)
     {
         await using var connection = new SqlConnection(ConnectionString);
         await connection.OpenAsync();
@@ -109,11 +117,11 @@ public sealed class SqlServerBehaviorTests
             command.Parameters.Add("@RequestHash", SqlDbType.Char, 64).Value = requestHash;
         try
         {
-            return (true, Convert.ToInt32(await command.ExecuteScalarAsync()));
+            return (true, Convert.ToInt32(await command.ExecuteScalarAsync()), null);
         }
-        catch (SqlException)
+        catch (SqlException ex)
         {
-            return (false, 0);
+            return (false, 0, $"{ex.Number}: {ex.Message}");
         }
     }
 
