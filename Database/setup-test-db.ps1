@@ -9,8 +9,11 @@ if (-not $container) { throw "The db container is not running. Run: docker compo
 
 $sqlcmd = "/opt/mssql-tools18/bin/sqlcmd"
 
-$script = (Get-Content "$PSScriptRoot\ShopDB.Docker.sql" -Raw -Encoding UTF8) -replace "ShopDB", $testDb
-$tmp = Join-Path $env:TEMP "ShopDB_Test.sql"
+$schemaFile = Join-Path $PSScriptRoot "ShopDB.Docker.sql"
+$seedFile = Join-Path $PSScriptRoot "test-seed.sql"
+
+$script = (Get-Content $schemaFile -Raw -Encoding UTF8) -replace "ShopDB", $testDb
+$tmp = Join-Path ([System.IO.Path]::GetTempPath()) "ShopDB_Test.sql"
 Set-Content -Path $tmp -Value $script -Encoding UTF8
 
 $exists = docker exec $container $sqlcmd -S localhost -U sa -P $password -No -h -1 -W -Q "SET NOCOUNT ON; SELECT DB_ID(N'$testDb')"
@@ -19,10 +22,12 @@ if ($exists -match "\d+") {
 } else {
     docker cp $tmp "${container}:/tmp/ShopDB_Test.sql"
     docker exec $container $sqlcmd -S localhost -U sa -P $password -No -b -i /tmp/ShopDB_Test.sql
+    if ($LASTEXITCODE -ne 0) { throw "Schema creation failed." }
 }
 
-docker cp "$PSScriptRoot\test-seed.sql" "${container}:/tmp/test-seed.sql"
+docker cp $seedFile "${container}:/tmp/test-seed.sql"
 docker exec $container $sqlcmd -S localhost -U sa -P $password -No -b -d $testDb -i /tmp/test-seed.sql
+if ($LASTEXITCODE -ne 0) { throw "Seeding test data failed." }
 
 $env:SHOP_SQL_CONNECTION = "Server=127.0.0.1,1433;Database=$testDb;User Id=sa;Password=$password;TrustServerCertificate=True;Encrypt=False"
 Write-Host "Ready. Now run: dotnet test"
