@@ -27,6 +27,8 @@ namespace ShopAPI.Controllers
         [EnableRateLimiting("PerUserPolicy")]
         [ProducesResponseType(typeof(ApiResponse<List<PersonDTO>>), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ApiResponse<List<PersonDTO>>), StatusCodes.Status404NotFound)]
+        [ProducesResponseType(typeof(ApiResponse<List<PersonDTO>>), StatusCodes.Status403Forbidden)]
+        [ProducesResponseType(typeof(ApiResponse<List<PersonDTO>>), StatusCodes.Status401Unauthorized)]
         public async Task<ActionResult<ApiResponse<List<PersonDTO>>>> GetAllAsync()
         {
             var people = await _personService.GetAllAsync();

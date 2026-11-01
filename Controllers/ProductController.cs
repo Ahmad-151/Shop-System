@@ -24,8 +24,6 @@ namespace ShopAPI.Controllers
         [HttpGet]
         [ProducesResponseType(typeof(ApiResponse<List<ProductDTO>>), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ApiResponse<List<ProductDTO>>), StatusCodes.Status404NotFound)]
-        [ProducesResponseType(typeof(ApiResponse<List<ProductDTO>>), StatusCodes.Status403Forbidden)]
-        [ProducesResponseType(typeof(ApiResponse<List<ProductDTO>>), StatusCodes.Status401Unauthorized)]
         [ProducesResponseType(typeof(ApiResponse<List<ProductDTO>>), StatusCodes.Status500InternalServerError)]
         public async Task<ActionResult<ApiResponse<List<ProductDTO>>>> GetAllAsync()
         {
